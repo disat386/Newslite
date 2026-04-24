@@ -1,7 +1,7 @@
-import { useEffect, useState, useCallback, useMemo } from 'react';
+import { useEffect, useState, useCallback, useMemo, useRef } from 'react';
 import { onAuthStateChanged, User } from 'firebase/auth';
-import { doc, getDoc, setDoc, updateDoc, serverTimestamp } from 'firebase/firestore';
-import { auth, db, signInWithAuurio } from './lib/firebase';
+import { doc, getDoc, setDoc, updateDoc, serverTimestamp, getDocFromServer, onSnapshot, DocumentSnapshot, DocumentData } from 'firebase/firestore';
+import { auth, db, signInWithAuurio, handleFirestoreError, OperationType } from './lib/firebase';
 import { getAI } from './lib/gemini';
 import { motion, AnimatePresence } from 'motion/react';
 import { 
@@ -65,6 +65,7 @@ const TOOLS: NewsTool[] = [
 export default function App() {
   const [user, setUser] = useState<User | null>(null);
   const [credits, setCredits] = useState<number | null>(null);
+  const [syncStatus, setSyncStatus] = useState<'synced' | 'cached' | 'offline' | 'error'>('offline');
   const [loading, setLoading] = useState(true);
   const [activeTool, setActiveTool] = useState<NewsToolId>('dashboard');
   const [isProcessing, setIsProcessing] = useState(false);
@@ -117,54 +118,78 @@ export default function App() {
     setActiveTool(toolId);
   }, []);
 
-  const syncUserCredits = useCallback(async (currentUser: User, retryCount = 0) => {
-    if (typeof window !== 'undefined' && !window.navigator.onLine) {
-      console.warn("AUR-SYNC: Browser is currently offline. Delaying sync...");
-      return;
+  const creditsUnsubRef = useRef<(() => void) | null>(null);
+
+  const syncUserCredits = useCallback((currentUser: User) => {
+    // Clear previous subscription if it exists
+    if (creditsUnsubRef.current) {
+      creditsUnsubRef.current();
+      creditsUnsubRef.current = null;
     }
 
     const userRef = doc(db, 'users', currentUser.uid);
-    try {
-      // Use getDocFromServer to force network synchronization
-      const userDoc = await getDocFromServer(userRef);
-      if (userDoc.exists()) {
-        setCredits(userDoc.data().credits || 0);
+    setSyncStatus('cached');
+    
+    // Auth check: Use onSnapshot with metadata for authoritative hub sync
+    creditsUnsubRef.current = onSnapshot(userRef, { includeMetadataChanges: true }, (snapshot: DocumentSnapshot<DocumentData>) => {
+      const isOnline = typeof window !== 'undefined' && window.navigator.onLine;
+
+      if (snapshot.exists()) {
+        const data = snapshot.data();
+        setCredits(data.credits ?? 0);
+        
+        if (!snapshot.metadata.fromCache) {
+          setSyncStatus('synced');
+          console.log("AUR-SYNC: Authority established with Auurio Hub.");
+        } else if (isOnline) {
+          setSyncStatus('cached');
+          console.log("AUR-SYNC: Using cached credits while re-establishing hub link...");
+        }
       } else {
-        await setDoc(userRef, {
-          uid: currentUser.uid,
-          email: currentUser.email,
-          displayName: currentUser.displayName,
-          credits: 100,
-          updatedAt: serverTimestamp()
-        });
-        setCredits(100);
+        // Authoritative creation: only if we are online and confirmed no record on server
+        if (isOnline && !snapshot.metadata.fromCache) {
+          (async () => {
+            try {
+              console.log("AUR-SYNC: Provisioning new node on Hub...");
+              await setDoc(userRef, {
+                uid: currentUser.uid,
+                email: currentUser.email,
+                displayName: currentUser.displayName,
+                credits: 100,
+                updatedAt: serverTimestamp()
+              }, { merge: true });
+              setSyncStatus('synced');
+            } catch (e: any) {
+              console.error("AUR-SYNC: Hub terminal access failed");
+              handleFirestoreError(e, OperationType.WRITE, `users/${currentUser.uid}`);
+              setSyncStatus('error');
+            }
+          })();
+        }
       }
-    } catch (error: any) {
-      console.error("Credit sync failed:", error);
-      
-      const isConnectionError = 
-        error.code === 'unavailable' || 
-        error.message?.includes('offline') || 
-        error.message?.includes('network');
-
-      if (retryCount < 3 && isConnectionError) {
-        const delay = Math.pow(2, retryCount) * 1000;
-        console.log(`AUR-SYNC: Connection lost. Re-establishing link in ${delay}ms... [Attempt ${retryCount + 1}]`);
-        setTimeout(() => syncUserCredits(currentUser, retryCount + 1), delay);
-        return;
+    }, (error: any) => {
+      const errorMsg = error.message?.toLowerCase() || '';
+      if (error.code === 'unavailable' || errorMsg.includes('offline')) {
+        setSyncStatus('offline');
+        console.warn("AUR-SYNC: Hub link unstable. Retaining local node state.");
+      } else {
+        setSyncStatus('error');
+        handleFirestoreError(error, OperationType.GET, `users/${currentUser.uid}`);
       }
-
-      if (error.message?.includes('permission') || error.code === 'permission-denied') {
-        console.warn("AUR-SEC: Hub sync restricted. Please verify domain authorization in Console.");
-      }
-    }
+    });
   }, []);
 
   useEffect(() => {
-    const unsub = onAuthStateChanged(auth, async (u) => {
+    const unsub = onAuthStateChanged(auth, (u) => {
       setUser(u);
-      if (u) await syncUserCredits(u);
-      else {
+      if (u) {
+        syncUserCredits(u);
+      } else {
+        setCredits(null);
+        if (creditsUnsubRef.current) {
+          creditsUnsubRef.current();
+          creditsUnsubRef.current = null;
+        }
         const params = new URLSearchParams(window.location.search);
         if (params.get('sso') === 'true' && params.get('email')) {
           signInWithAuurio(params.get('email')!).catch(() => {});
@@ -172,7 +197,10 @@ export default function App() {
       }
       setLoading(false);
     });
-    return unsub;
+    return () => {
+      unsub();
+      if (creditsUnsubRef.current) creditsUnsubRef.current();
+    };
   }, [syncUserCredits]);
 
   const filteredTools = useMemo(() => {
@@ -275,6 +303,12 @@ export default function App() {
                 <div className="flex items-center gap-1.5 mt-0.5">
                   <Coins className="w-3 h-3 text-auurio-yellow" />
                   <span className="text-[10px] font-black text-auurio-yellow">{credits ?? '...'}</span>
+                  <div className={`ml-2 w-1.5 h-1.5 rounded-full ${
+                    syncStatus === 'synced' ? 'bg-green-500 shadow-[0_0_8px_rgba(34,197,94,0.5)]' :
+                    syncStatus === 'cached' ? 'bg-auurio-yellow animate-pulse' :
+                    syncStatus === 'offline' ? 'bg-white/20' :
+                    'bg-red-500 animate-bounce'
+                  }`} title={`Hub Sync: ${syncStatus}`} />
                 </div>
               </div>
            </div>
@@ -444,6 +478,24 @@ export default function App() {
                   <label className="text-[9px] uppercase font-black text-white/30 tracking-widest">Protocol Version</label>
                   <div className="p-3 bg-white/5 rounded-xl border border-white/10 text-xs font-bold text-white/60">v1.2.4-stable (Neural Hub Linked)</div>
                 </div>
+                <div className="space-y-4">
+                  <h4 className="text-[9px] uppercase font-black text-white/30 tracking-widest">Auurio Hub Protocol</h4>
+                  <div className="space-y-2">
+                    <p className="text-[9px] text-white/40 italic">Current Node ID: {user?.uid.slice(0, 8)}...</p>
+                    <p className="text-[9px] text-white/40 italic">Hub Database: {auth.app.options.projectId} / { (db as any)._databaseId?.database || '(default)' }</p>
+                    <button 
+                      onClick={() => {
+                        if (user) syncUserCredits(user);
+                        setShowSettings(false);
+                      }}
+                      className="w-full py-3 bg-auurio-accent/20 border border-auurio-accent/40 rounded-xl text-[10px] font-black uppercase tracking-widest flex items-center justify-center gap-2 hover:bg-auurio-accent/30 transition-all"
+                    >
+                      <Zap className="w-3 h-3" />
+                      Force Hub Resync
+                    </button>
+                  </div>
+                </div>
+
                 <div className="space-y-4">
                   <h4 className="text-[9px] uppercase font-black text-white/30 tracking-widest">Manual Node Override</h4>
                   <div className="space-y-2">

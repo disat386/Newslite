@@ -54,8 +54,8 @@ service cloud.firestore {
     match /users/{userId} {
       allow get: if isOwner(userId) && isValidId(userId);
       
-      // Allow creation during first sync
-      allow create: if isOwner(userId) && isValidId(userId);
+      // Allow creation during first sync with strict schema validation
+      allow create: if isOwner(userId) && isValidId(userId) && isValidUser(incoming());
       
       // Update logic partitioned into actions
       allow update: if isOwner(userId) && isValidId(userId) && (
