@@ -3,7 +3,12 @@ import { GoogleGenAI, Type } from "@google/genai";
 const getApiKey = () => {
   const key = process.env.GEMINI_API_KEY || (import.meta as any).env?.VITE_GEMINI_API_KEY || '';
   if (!key) {
-    console.warn("GEMINI_API_KEY is not defined in the environment.");
+    const isLocal = typeof window !== 'undefined' && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1');
+    const isDevPreview = typeof window !== 'undefined' && window.location.hostname.includes('run.app');
+    
+    if (!isLocal && !isDevPreview) {
+      throw new Error("NewsLite Error: GEMINI_API_KEY missing. If you've deployed this to your own domain, ensure VITE_GEMINI_API_KEY is set in your environment variables.");
+    }
   }
   return key;
 };

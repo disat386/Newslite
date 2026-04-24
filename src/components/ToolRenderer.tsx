@@ -576,8 +576,13 @@ export const ToolRenderer: React.FC<ToolRendererProps> = ({
                        <h3 className="text-auurio-accent text-[9px] lg:text-[10px] uppercase font-black tracking-widest mb-3 lg:mb-4">One-Line Sync</h3>
                        <p className="font-medium text-base lg:text-lg leading-relaxed">{result.oneLine}</p>
                     </div>
-                    <div className="glass-card rounded-2xl lg:rounded-3xl p-6 lg:p-8 border-white/10">
-                       <h3 className="text-auurio-yellow text-[9px] lg:text-[10px] uppercase font-black tracking-widest mb-3 lg:mb-4">Simplified Logic</h3>
+                    <div className="glass-card rounded-2xl lg:rounded-3xl p-6 lg:p-8 border-white/10 relative group">
+                       <div className="flex justify-between items-center mb-3 lg:mb-4">
+                          <h3 className="text-auurio-yellow text-[9px] lg:text-[10px] uppercase font-black tracking-widest leading-none">Simplified Logic</h3>
+                          <button onClick={() => copyToClipboard(result.eli10)} className="text-white/20 hover:text-white transition-all opacity-0 group-hover:opacity-100">
+                             <Copy className="w-3 h-3" />
+                          </button>
+                       </div>
                        <p className="font-medium opacity-60 leading-relaxed italic text-sm lg:text-base">"{result.eli10}"</p>
                     </div>
                   </div>
