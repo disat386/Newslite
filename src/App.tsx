@@ -2,6 +2,7 @@ import { useEffect, useState, useCallback, useMemo } from 'react';
 import { onAuthStateChanged, User } from 'firebase/auth';
 import { doc, getDoc, setDoc, updateDoc, serverTimestamp } from 'firebase/firestore';
 import { auth, db, signInWithAuurio } from './lib/firebase';
+import { getAI } from './lib/gemini';
 import { motion, AnimatePresence } from 'motion/react';
 import { 
   Sparkles, 
@@ -79,6 +80,22 @@ export default function App() {
 
   const isApiKeyMissing = isEnvKeyMissing && !localStorage.getItem('auurio_gemini_key');
 
+  useEffect(() => {
+    const syncHubKey = async () => {
+      if (isEnvKeyMissing && !localStorage.getItem('auurio_gemini_key')) {
+        setIsSyncingKey(true);
+        try {
+          // Trigger the fetch logic in gemini.ts which handles localstorage/firestore
+          await getAI();
+        } catch (e) {
+          console.error("Hub Sync Background Error:", e);
+        } finally {
+          setIsSyncingKey(false);
+        }
+      }
+    };
+    syncHubKey();
+  }, [isEnvKeyMissing]);
   const launchToolWithInput = useCallback((toolId: NewsToolId, input: string) => {
     setPrefilledInput(input);
     setActiveTool(toolId);

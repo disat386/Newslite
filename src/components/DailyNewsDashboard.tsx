@@ -80,7 +80,10 @@ export const DailyNewsDashboard: React.FC<DailyNewsDashboardProps> = ({ onLaunch
         }, `NewsLite High-Speed Curate. Region: ${selectedRegion}. Lang: ${targetLang}.`);
         setNews(result);
         setLoading(false);
-      } catch (e) {
+      } catch (e: any) {
+        if (e.message?.includes('QUOTA_EXCEEDED')) {
+          setNews([{ title: "Quota Protocol Reached", category: "System", time: "Now", impact: "High", details: e.message } as any]);
+        }
         console.error(e);
       } finally {
         setRefreshing(false);
@@ -108,8 +111,13 @@ export const DailyNewsDashboard: React.FC<DailyNewsDashboardProps> = ({ onLaunch
         const updatedNews = news.map(n => n.title === item.title ? { ...n, details: result.details } : n);
         setNews(updatedNews);
         setSelectedNews({ ...item, details: result.details });
-      } catch (e) {
+      } catch (e: any) {
         console.error("Failed to fetch details:", e);
+        if (e.message?.includes('QUOTA_EXCEEDED')) {
+          const updatedNews = news.map(n => n.title === item.title ? { ...n, details: e.message } : n);
+          setNews(updatedNews);
+          setSelectedNews({ ...item, details: e.message });
+        }
       } finally {
         setDetailLoading(false);
       }

@@ -340,7 +340,11 @@ export const ToolRenderer: React.FC<ToolRendererProps> = ({
 
       setResult(aiResult);
     } catch (err: any) {
-      setError(err.message || "An error occurred during AI processing.");
+      if (err.message?.includes('QUOTA_EXCEEDED')) {
+        setError(err.message);
+      } else {
+        setError(err.message || "An error occurred during AI processing.");
+      }
     } finally {
       setIsProcessing(false);
     }

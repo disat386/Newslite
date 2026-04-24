@@ -67,27 +67,41 @@ export const models = {
 };
 
 export async function generateText(prompt: string, systemInstruction?: string) {
-  const ai = await getAI();
-  const response = await ai.models.generateContent({
-    model: models.flash,
-    contents: prompt,
-    config: {
-      systemInstruction
+  try {
+    const ai = await getAI();
+    const response = await ai.models.generateContent({
+      model: models.flash,
+      contents: prompt,
+      config: {
+        systemInstruction
+      }
+    });
+    return response.text;
+  } catch (error: any) {
+    if (error.message?.includes('429') || error.message?.includes('quota') || error.status === 429) {
+      throw new Error("QUOTA_EXCEEDED: You have reached the Gemini API limits. Please wait 60s or provide an API key in your Admin Panel Hub settings.");
     }
-  });
-  return response.text;
+    throw error;
+  }
 }
 
 export async function generateJSON(prompt: string, schema: any, systemInstruction?: string) {
-  const ai = await getAI();
-  const response = await ai.models.generateContent({
-    model: models.flash,
-    contents: prompt,
-    config: {
-      systemInstruction,
-      responseMimeType: "application/json",
-      responseSchema: schema
+  try {
+    const ai = await getAI();
+    const response = await ai.models.generateContent({
+      model: models.flash,
+      contents: prompt,
+      config: {
+        systemInstruction,
+        responseMimeType: "application/json",
+        responseSchema: schema
+      }
+    });
+    return JSON.parse(response.text || "{}");
+  } catch (error: any) {
+    if (error.message?.includes('429') || error.message?.includes('quota') || error.status === 429) {
+      throw new Error("QUOTA_EXCEEDED: You have reached the Gemini API limits. Please wait 60s or provide an API key in your Admin Panel Hub settings.");
     }
-  });
-  return JSON.parse(response.text || "{}");
+    throw error;
+  }
 }
