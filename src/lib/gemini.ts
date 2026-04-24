@@ -4,15 +4,15 @@ import { doc, getDoc } from 'firebase/firestore';
 
 let dynamicApiKey: string | null = null;
 
-const getApiKey = async () => {
+const getApiKey = async (force: boolean = false) => {
   const isLocal = typeof window !== 'undefined' && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1');
   const isDevPreview = typeof window !== 'undefined' && window.location.hostname.includes('run.app');
 
-  // 1. Check Memory Cache
-  if (dynamicApiKey) return dynamicApiKey;
+  // 1. Check Memory Cache (unless forced)
+  if (dynamicApiKey && !force) return dynamicApiKey;
 
-  // 2. Check LocalStorage Cache
-  if (typeof window !== 'undefined') {
+  // 2. Check LocalStorage Cache (unless forced)
+  if (typeof window !== 'undefined' && !force) {
     const cached = localStorage.getItem('auurio_gemini_key');
     if (cached) {
       dynamicApiKey = cached;
@@ -34,9 +34,16 @@ const getApiKey = async () => {
 
     if (configSnap.exists()) {
       const data = configSnap.data();
+      // Handle both single key and possible array/rotation field if hub provides it differently
       const hubKey = data.geminiApiKey || data.apiKey;
+      
       if (hubKey) {
-        console.log("Intelligence Protocol: Hub Key Synchronized.");
+        if (force) {
+          console.log("Intelligence Protocol: Hub Rotation Detected. Synchronizing fresh key...");
+        } else {
+          console.log("Intelligence Protocol: Hub Key Synchronized.");
+        }
+        
         dynamicApiKey = hubKey;
         if (typeof window !== 'undefined') {
           localStorage.setItem('auurio_gemini_key', hubKey);
@@ -66,10 +73,10 @@ const getApiKey = async () => {
 let genAI: GoogleGenAI | null = null;
 let currentKey: string | null = null;
 
-export async function getAI() {
-  const key = await getApiKey();
+export async function getAI(force: boolean = false) {
+  const key = await getApiKey(force);
   
-  if (!genAI || key !== currentKey) {
+  if (!genAI || key !== currentKey || force) {
     if (!key) throw new Error("GEMINI_API_KEY is not available protocol-wide.");
     genAI = new GoogleGenAI({ apiKey: key });
     currentKey = key;
@@ -85,9 +92,9 @@ export const models = {
   tts: "gemini-3.1-flash-tts-preview"
 };
 
-export async function generateText(prompt: string, systemInstruction?: string) {
+export async function generateText(prompt: string, systemInstruction?: string, retryCount = 0) {
   try {
-    const ai = await getAI();
+    const ai = await getAI(retryCount > 0);
     const response = await ai.models.generateContent({
       model: models.flash,
       contents: prompt,
@@ -97,16 +104,26 @@ export async function generateText(prompt: string, systemInstruction?: string) {
     });
     return response.text;
   } catch (error: any) {
-    if (error.message?.includes('429') || error.message?.includes('quota') || error.status === 429) {
-      throw new Error("QUOTA_EXCEEDED: You have reached the Gemini API limits. Please wait 60s or provide an API key in your Admin Panel Hub settings.");
+    const isQuotaError = error.message?.includes('429') || error.message?.includes('quota') || error.status === 429;
+    
+    if (isQuotaError && retryCount < 1) {
+      console.warn("Intelligence Protocol: Quota detected. Requesting Hub Rotation...");
+      // Invalidate the key and retry immediately
+      dynamicApiKey = null;
+      if (typeof window !== 'undefined') localStorage.removeItem('auurio_gemini_key');
+      return generateText(prompt, systemInstruction, retryCount + 1);
+    }
+
+    if (isQuotaError) {
+      throw new Error("QUOTA_EXCEEDED: Key Rotation limit reached. Please wait 60s or check rotation status in Hub.");
     }
     throw error;
   }
 }
 
-export async function generateJSON(prompt: string, schema: any, systemInstruction?: string) {
+export async function generateJSON(prompt: string, schema: any, systemInstruction?: string, retryCount = 0) {
   try {
-    const ai = await getAI();
+    const ai = await getAI(retryCount > 0);
     const response = await ai.models.generateContent({
       model: models.flash,
       contents: prompt,
@@ -118,8 +135,18 @@ export async function generateJSON(prompt: string, schema: any, systemInstructio
     });
     return JSON.parse(response.text || "{}");
   } catch (error: any) {
-    if (error.message?.includes('429') || error.message?.includes('quota') || error.status === 429) {
-      throw new Error("QUOTA_EXCEEDED: You have reached the Gemini API limits. Please wait 60s or provide an API key in your Admin Panel Hub settings.");
+    const isQuotaError = error.message?.includes('429') || error.message?.includes('quota') || error.status === 429;
+    
+    if (isQuotaError && retryCount < 1) {
+      console.warn("Intelligence Protocol: Quota detected. Requesting Hub Rotation...");
+      // Invalidate the key and retry immediately
+      dynamicApiKey = null;
+      if (typeof window !== 'undefined') localStorage.removeItem('auurio_gemini_key');
+      return generateJSON(prompt, schema, systemInstruction, retryCount + 1);
+    }
+
+    if (isQuotaError) {
+      throw new Error("QUOTA_EXCEEDED: Key Rotation limit reached. Please wait 60s or check rotation status in Hub.");
     }
     throw error;
   }
