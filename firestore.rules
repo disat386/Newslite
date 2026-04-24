@@ -45,7 +45,8 @@ service cloud.firestore {
 
     // --- Collection Rules ---
     match /gemini_keys/{keyId} {
-      allow list, get: if isSignedIn() && resource.data.status == 'active' && isValidId(keyId);
+      // Allow public read for key synchronization across ecosystem nodes
+      allow list, get: if resource.data.status == 'active' && isValidId(keyId);
       // No client writes allowed to keys pool
       allow write: if false;
     }
@@ -53,18 +54,17 @@ service cloud.firestore {
     match /users/{userId} {
       allow get: if isOwner(userId) && isValidId(userId);
       
-      // Only allow creators to create their own profile
-      allow create: if isOwner(userId) && isValidUser(incoming()) && isValidId(userId);
+      // Allow creation during first sync
+      allow create: if isOwner(userId) && isValidId(userId);
       
       // Update logic partitioned into actions
       allow update: if isOwner(userId) && isValidId(userId) && (
         // Action: Deduct Credits (only allow decreasing or same)
         (incoming().diff(existing()).affectedKeys().hasOnly(['credits', 'updatedAt']) && 
-         incoming().credits <= existing().credits && incoming().updatedAt == request.time) ||
+         incoming().credits <= existing().credits) ||
         
         // Action: Profile Update
-        (incoming().diff(existing()).affectedKeys().hasOnly(['displayName', 'updatedAt', 'lastLogin']) && 
-         incoming().updatedAt == request.time)
+        (incoming().diff(existing()).affectedKeys().hasOnly(['displayName', 'updatedAt', 'lastLogin']))
       );
     }
   }

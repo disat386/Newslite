@@ -39,15 +39,18 @@ class GeminiKeyService {
 
       if (!this.initialized && newKeys.length > 0) {
         this.keys = this.shuffle(newKeys);
-        console.log(`Auurio Hub: API Rotation Protocol Active. ${this.keys.length} keys synchronized.`);
+        console.log(`AUR-PROTOCOL: [SYNC COMPLETE] ${this.keys.length} active nodes synchronized from Hub.`);
         this.initialized = true;
         this.resolveInit();
       } else {
         this.keys = newKeys;
+        if (newKeys.length === 0) {
+          console.warn("AUR-PROTOCOL: [SYNC EMPTY] Hub has no active nodes.");
+        }
       }
     }, (error) => {
-      console.warn("Auurio Hub: Key sync interrupted.", error);
-      this.resolveInit();
+      console.warn("AUR-PROTOCOL: [SYNC FAILED] Connection refused by Hub.", error.message);
+      this.resolveInit(); // Don't block the app if sync fails
     });
   }
 

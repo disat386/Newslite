@@ -78,8 +78,13 @@ export default function App() {
   const isEnvKeyMissing = !process.env.GEMINI_API_KEY && !(import.meta as any).env?.VITE_GEMINI_API_KEY;
   const isCustomDomain = typeof window !== 'undefined' && !window.location.hostname.includes('run.app') && window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1';
 
-  const isApiKeyMissing = isEnvKeyMissing && !localStorage.getItem('auurio_gemini_key');
+  const [isApiKeyMissing, setIsApiKeyMissing] = useState(false);
   const [hubNodes, setHubNodes] = useState(0);
+
+  useEffect(() => {
+    const isMissing = isEnvKeyMissing && !localStorage.getItem('auurio_gemini_key');
+    setIsApiKeyMissing(isMissing);
+  }, [isEnvKeyMissing]);
 
   useEffect(() => {
     // Listen for key synchronization from the protocol service
@@ -112,12 +117,18 @@ export default function App() {
     setActiveTool(toolId);
   }, []);
 
-  const syncUserCredits = useCallback(async (currentUser: User) => {
+  const syncUserCredits = useCallback(async (currentUser: User, retryCount = 0) => {
+    if (typeof window !== 'undefined' && !window.navigator.onLine) {
+      console.warn("AUR-SYNC: Browser is currently offline. Delaying sync...");
+      return;
+    }
+
     const userRef = doc(db, 'users', currentUser.uid);
     try {
-      const userDoc = await getDoc(userRef);
+      // Use getDocFromServer to force network synchronization
+      const userDoc = await getDocFromServer(userRef);
       if (userDoc.exists()) {
-        setCredits(userDoc.data().credits);
+        setCredits(userDoc.data().credits || 0);
       } else {
         await setDoc(userRef, {
           uid: currentUser.uid,
@@ -130,8 +141,20 @@ export default function App() {
       }
     } catch (error: any) {
       console.error("Credit sync failed:", error);
+      
+      const isConnectionError = 
+        error.code === 'unavailable' || 
+        error.message?.includes('offline') || 
+        error.message?.includes('network');
+
+      if (retryCount < 3 && isConnectionError) {
+        const delay = Math.pow(2, retryCount) * 1000;
+        console.log(`AUR-SYNC: Connection lost. Re-establishing link in ${delay}ms... [Attempt ${retryCount + 1}]`);
+        setTimeout(() => syncUserCredits(currentUser, retryCount + 1), delay);
+        return;
+      }
+
       if (error.message?.includes('permission') || error.code === 'permission-denied') {
-        // We can show a toast or a non-blocking message
         console.warn("AUR-SEC: Hub sync restricted. Please verify domain authorization in Console.");
       }
     }
@@ -421,6 +444,37 @@ export default function App() {
                   <label className="text-[9px] uppercase font-black text-white/30 tracking-widest">Protocol Version</label>
                   <div className="p-3 bg-white/5 rounded-xl border border-white/10 text-xs font-bold text-white/60">v1.2.4-stable (Neural Hub Linked)</div>
                 </div>
+                <div className="space-y-4">
+                  <h4 className="text-[9px] uppercase font-black text-white/30 tracking-widest">Manual Node Override</h4>
+                  <div className="space-y-2">
+                    <p className="text-[9px] text-white/40 italic">If Hub sync fails on custom domains, override with a local node.</p>
+                    <input 
+                      type="password" 
+                      placeholder="Enter Gemini API Key..."
+                      defaultValue={localStorage.getItem('auurio_gemini_key') || ''}
+                      onChange={(e) => {
+                        if (e.target.value) {
+                          localStorage.setItem('auurio_gemini_key', e.target.value);
+                          setIsApiKeyMissing(false);
+                        } else {
+                          localStorage.removeItem('auurio_gemini_key');
+                          setIsApiKeyMissing(isEnvKeyMissing);
+                        }
+                      }}
+                      className="w-full bg-white/5 border border-white/10 rounded-xl py-3 px-4 text-xs font-mono focus:border-auurio-accent focus:outline-none transition-all"
+                    />
+                    <button 
+                      onClick={() => {
+                        localStorage.clear();
+                        window.location.reload();
+                      }}
+                      className="w-full py-2 text-[10px] uppercase font-bold text-red-400/60 hover:text-red-400 transition-colors border border-dashed border-red-400/20 rounded-lg"
+                    >
+                      Hard Reset All Local Data
+                    </button>
+                  </div>
+                </div>
+
                 <div className="space-y-4">
                   <h4 className="text-[9px] uppercase font-black text-white/30 tracking-widest">Ecosystem Preferences</h4>
                   <div className="space-y-2">
