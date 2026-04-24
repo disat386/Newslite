@@ -71,6 +71,12 @@ export default function App() {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
   const [showHelp, setShowHelp] = useState(false);
+  const [prefilledInput, setPrefilledInput] = useState('');
+
+  const launchToolWithInput = useCallback((toolId: NewsToolId, input: string) => {
+    setPrefilledInput(input);
+    setActiveTool(toolId);
+  }, []);
 
   const syncUserCredits = useCallback(async (currentUser: User) => {
     const userRef = doc(db, 'users', currentUser.uid);
@@ -316,7 +322,7 @@ export default function App() {
               ) : (
                 <motion.div key={activeTool} initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} className="h-full">
                   {activeTool === 'dashboard' ? (
-                     <DailyNewsDashboard />
+                     <DailyNewsDashboard onLaunchTool={launchToolWithInput} />
                   ) : activeTool === 'video' || TOOLS.find(t => t.id === activeTool)?.status === 'under-construction' ? (
                     <div className="flex flex-col items-center justify-center min-h-[40vh] border-2 border-dashed border-white/5 rounded-[2rem] lg:rounded-[3rem] p-8 lg:p-12 text-center opacity-40">
                        <div className="p-6 lg:p-8 bg-white/5 rounded-full mb-8">
@@ -333,6 +339,8 @@ export default function App() {
                       user={user} 
                       credits={credits} 
                       setCredits={setCredits} 
+                      initialInput={prefilledInput}
+                      onClearInitialInput={() => setPrefilledInput('')}
                     />
                   )}
                 </motion.div>

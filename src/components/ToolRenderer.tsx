@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { 
   Send, 
@@ -30,10 +30,28 @@ interface ToolRendererProps {
   user: any;
   credits: number | null;
   setCredits: (c: number) => void;
+  initialInput?: string;
+  onClearInitialInput?: () => void;
 }
 
-export const ToolRenderer: React.FC<ToolRendererProps> = ({ toolId, toolName, toolDescription, user, credits, setCredits }) => {
+export const ToolRenderer: React.FC<ToolRendererProps> = ({ 
+  toolId, 
+  toolName, 
+  toolDescription, 
+  user, 
+  credits, 
+  setCredits,
+  initialInput,
+  onClearInitialInput
+}) => {
   const [input, setInput] = useState('');
+
+  useEffect(() => {
+    if (initialInput) {
+      setInput(initialInput);
+      onClearInitialInput?.();
+    }
+  }, [initialInput, onClearInitialInput]);
   const [isProcessing, setIsProcessing] = useState(false);
   const [result, setResult] = useState<any>(null);
   const [error, setError] = useState<string | null>(null);

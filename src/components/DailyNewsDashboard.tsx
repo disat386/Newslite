@@ -12,20 +12,59 @@ import {
   Loader2,
   X,
   ShieldCheck,
-  ChevronRight
+  ChevronRight,
+  FileText,
+  Mic2,
+  Languages,
+  Share2
 } from 'lucide-react';
 import { generateJSON } from '../lib/gemini';
 import { Type } from '@google/genai';
+import { NewsToolId } from '../types';
 
-export const DailyNewsDashboard: React.FC = () => {
+interface DailyNewsDashboardProps {
+  onLaunchTool?: (toolId: NewsToolId, input: string) => void;
+}
+
+export const DailyNewsDashboard: React.FC<DailyNewsDashboardProps> = ({ onLaunchTool }) => {
   const [news, setNews] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [selectedNews, setSelectedNews] = useState<any | null>(null);
+  const [selectedRegion, setSelectedRegion] = useState('Global');
+
+  const regions = ['Global', 'Bangladesh', 'India', 'USA', 'Iran', 'Israel', 'UK', 'China', 'Europe', 'Middle East', 'Japan', 'Russia', 'Australia', 'Brazil', 'Canada'];
+
+  const getRegionLanguage = (region: string) => {
+    switch (region) {
+      case 'Bangladesh': return 'Bengali';
+      case 'India': return 'Hindi/English';
+      case 'USA': return 'English';
+      case 'Iran': return 'Persian';
+      case 'Israel': return 'Hebrew/English';
+      case 'China': return 'Chinese';
+      case 'Japan': return 'Japanese';
+      case 'Russia': return 'Russian';
+      case 'Brazil': return 'Portuguese';
+      case 'UK':
+      case 'Australia': 
+      case 'Canada':
+        return 'English';
+      default: return 'English';
+    }
+  };
 
   useEffect(() => {
     async function fetchNews() {
+      setRefreshing(true);
       try {
-        const result = await generateJSON("Current top global news topics for today. Provide a list of 5 items with detailed descriptions.", {
+        const regionQuery = selectedRegion === 'Global' ? 'global' : `specific to ${selectedRegion}`;
+        const targetLang = getRegionLanguage(selectedRegion);
+        
+        const result = await generateJSON(`Current top ${regionQuery} news topics for today. 
+          Provide a list of 15 items with comprehensive summaries (at least 200 words each). 
+          IMPORTANT: For regions other than USA/UK/Global, provide titles and categories in both ${targetLang} and English.
+          Format titles as "Title in ${targetLang} | English Title" or similar dual-language format.`, {
           type: Type.ARRAY,
           items: {
             type: Type.OBJECT,
@@ -37,21 +76,28 @@ export const DailyNewsDashboard: React.FC = () => {
               details: { type: Type.STRING }
             }
           }
-        }, "You are the NewsLite Daily Dashboard. Curate technical and global news.");
+        }, `You are the NewsLite Daily Dashboard. Curate technical and ${selectedRegion} news with depth. Current Region: ${selectedRegion}, Preferred Language: ${targetLang}.`);
         setNews(result);
+        setLoading(false);
       } catch (e) {
         console.error(e);
       } finally {
-        setLoading(false);
+        setRefreshing(false);
       }
     }
     fetchNews();
-  }, []);
+  }, [selectedRegion]);
 
   if (loading) return (
-    <div className="flex flex-col items-center justify-center h-64 text-white/20">
-      <Loader2 className="w-8 h-8 animate-spin mb-4" />
-      <span className="text-[10px] uppercase font-black tracking-widest leading-none">Accessing Daily Pulse...</span>
+    <div className="flex flex-col items-center justify-center min-h-[400px] text-white/20 gap-6">
+      <div className="relative">
+        <Loader2 className="w-12 h-12 animate-spin text-auurio-accent" />
+        <div className="absolute inset-0 blur-xl bg-auurio-accent/20 animate-pulse rounded-full" />
+      </div>
+      <div className="flex flex-col items-center gap-2">
+        <span className="text-[10px] uppercase font-black tracking-[0.3em] animate-pulse">Initializing Neural Link</span>
+        <span className="text-[8px] uppercase font-bold text-white/10 tracking-[0.1em]">Syncing regional protocols...</span>
+      </div>
     </div>
   );
 
@@ -83,34 +129,86 @@ export const DailyNewsDashboard: React.FC = () => {
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 lg:gap-10">
         <div className="lg:col-span-2 space-y-4 lg:space-y-6">
-           <h3 className="text-[9px] lg:text-[10px] uppercase font-black tracking-[0.3em] text-white/30 px-2 flex items-center gap-3">
-             <div className="w-1.5 h-1.5 rounded-full bg-auurio-accent animate-pulse" />
-             Live Pulse Feed
-           </h3>
-           <div className="space-y-3 lg:space-y-4">
-              {news.map((item, i) => (
-                <motion.div 
-                  key={i}
-                  initial={{ opacity: 0, x: -20 }} 
-                  animate={{ opacity: 1, x: 0 }} 
-                  transition={{ delay: i * 0.1 }}
-                  onClick={() => setSelectedNews(item)}
-                  className="glass-card rounded-2xl lg:rounded-[2rem] p-5 lg:p-6 border-white/10 hover:bg-white/5 transition-all group cursor-pointer hover:border-auurio-accent/30"
-                >
-                   <div className="flex justify-between items-start mb-3 lg:mb-4">
-                      <div className="flex items-center gap-2">
-                        <span className="text-[8px] lg:text-[9px] font-black uppercase px-2 py-0.5 bg-auurio-accent/10 text-auurio-accent border border-auurio-accent/20 rounded-full">{item.category}</span>
-                        <div className="flex items-center gap-1 text-[8px] lg:text-[9px] font-black uppercase text-white/20">
-                          <Clock className="w-2.5 h-2.5" />
-                          {item.time}
+           <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 px-2">
+              <h3 className="text-[9px] lg:text-[10px] uppercase font-black tracking-[0.3em] text-white/30 flex items-center gap-3">
+                <div className={`w-1.5 h-1.5 rounded-full ${refreshing ? 'bg-auurio-accent animate-ping' : 'bg-green-500 animate-pulse'}`} />
+                Live Pulse Feed
+                {refreshing && <span className="text-auurio-accent/50 animate-pulse lowercase font-medium tracking-normal text-[8px]">Syncing...</span>}
+              </h3>
+              <div className="flex items-center gap-2 overflow-x-auto no-scrollbar max-w-full pb-2 -mb-2">
+                 <div className="flex items-center gap-2 flex-nowrap pr-4">
+                   {regions.map(region => (
+                     <button
+                       key={region}
+                       onClick={() => setSelectedRegion(region)}
+                       className={`whitespace-nowrap px-3 py-1.5 rounded-full text-[9px] font-black uppercase transition-all border shrink-0 ${
+                         selectedRegion === region 
+                         ? 'bg-auurio-accent border-auurio-accent text-white shadow-lg shadow-auurio-accent/20' 
+                         : 'bg-white/5 border-white/10 text-white/40 hover:text-white hover:bg-white/10'
+                       }`}
+                     >
+                       {region}
+                     </button>
+                   ))}
+                 </div>
+              </div>
+           </div>
+           <div className="relative">
+             <div className={`space-y-3 lg:space-y-4 transition-all duration-500 ${refreshing ? 'opacity-30 blur-[2px] grayscale pointer-events-none' : 'opacity-100 blur-0 grayscale-0'}`}>
+                {news.map((item, i) => (
+                  <motion.div 
+                    key={i}
+                    initial={{ opacity: 0, x: -20 }} 
+                    animate={{ opacity: 1, x: 0 }} 
+                    transition={{ delay: i * 0.05 }}
+                    onClick={() => setSelectedNews(item)}
+                    className="glass-card rounded-2xl lg:rounded-[2rem] p-5 lg:p-6 border-white/10 hover:bg-white/5 transition-all group cursor-pointer hover:border-auurio-accent/30"
+                  >
+                     <div className="flex justify-between items-start mb-3 lg:mb-4">
+                        <div className="flex items-center gap-2">
+                           <span className="text-[8px] lg:text-[9px] font-black uppercase px-2 py-0.5 bg-white/5 group-hover:bg-auurio-accent/20 group-hover:text-auurio-accent text-white/40 rounded-full border border-white/10 transition-all">{item.category}</span>
+                           <div className="flex items-center gap-1 text-[8px] lg:text-[9px] font-bold text-white/20 uppercase">
+                             <Clock className="w-3 h-3" /> {item.time}
+                           </div>
+                        </div>
+                        <ArrowUpRight className="w-4 h-4 text-white/10 group-hover:text-auurio-accent group-hover:translate-x-0.5 group-hover:-translate-y-0.5 transition-all" />
+                     </div>
+                     <h4 className="text-sm lg:text-xl font-black italic tracking-tight mb-2 group-hover:text-white transition-colors leading-tight">{item.title}</h4>
+                     <p className="text-[10px] lg:text-xs text-white/40 line-clamp-2 leading-relaxed group-hover:text-white/60 transition-colors font-medium">"{item.impact}"</p>
+                  </motion.div>
+                ))}
+             </div>
+
+             <AnimatePresence>
+                {refreshing && (
+                  <motion.div 
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    exit={{ opacity: 0 }}
+                    className="absolute inset-0 flex flex-col items-center justify-center bg-black/5 z-10 rounded-[2rem] lg:rounded-[3rem]"
+                  >
+                    <div className="flex flex-col items-center gap-4 p-8 glass-card border-white/5 rounded-3xl shadow-2xl">
+                      <div className="relative">
+                        <Loader2 className="w-10 h-10 animate-spin text-auurio-accent" />
+                        <div className="absolute inset-0 blur-lg bg-auurio-accent/40 animate-pulse rounded-full" />
+                      </div>
+                      <div className="flex flex-col items-center gap-1">
+                        <span className="text-[9px] font-black uppercase tracking-[0.2em] text-white/80">Updating Pulse</span>
+                        <div className="flex gap-1.5 mt-2">
+                           {[0, 1, 2].map((_, i) => (
+                             <motion.div 
+                               key={i}
+                               animate={{ opacity: [0.2, 1, 0.2] }}
+                               transition={{ repeat: Infinity, duration: 1, delay: i * 0.2 }}
+                               className="w-1 h-1 bg-auurio-accent rounded-full"
+                             />
+                           ))}
                         </div>
                       </div>
-                      <ExternalLink className="w-4 h-4 text-white/0 group-hover:text-white/20 transition-all hidden lg:block" />
-                   </div>
-                   <h4 className="text-base lg:text-lg font-black tracking-tight mb-2 group-hover:text-auurio-accent transition-colors leading-tight">{item.title}</h4>
-                   <p className="text-[10px] lg:text-xs font-medium text-white/40 italic">"{item.impact}"</p>
-                </motion.div>
-              ))}
+                    </div>
+                  </motion.div>
+                )}
+             </AnimatePresence>
            </div>
         </div>
 
@@ -183,18 +281,40 @@ export const DailyNewsDashboard: React.FC = () => {
                    {selectedNews.title}
                  </h2>
 
-                 <div className="p-6 lg:p-8 bg-white/5 rounded-3xl border border-white/5">
-                   <p className="text-xs lg:text-sm text-white/60 leading-relaxed font-medium">
+                 <div className="p-6 lg:p-8 bg-white/5 rounded-3xl border border-white/5 max-h-60 overflow-y-auto custom-scrollbar">
+                   <p className="text-xs lg:text-sm text-white/60 leading-relaxed font-medium whitespace-pre-wrap">
                      {selectedNews.details || selectedNews.impact}
                    </p>
                  </div>
 
+                 <div className="space-y-4">
+                    <h4 className="text-[9px] uppercase font-black tracking-widest text-white/30 px-1">Available Processing Protocols</h4>
+                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                       {[
+                         { id: 'summarizer', label: 'Summarize', icon: FileText, color: 'text-blue-400' },
+                         { id: 'factchecker', label: 'Fact Check', icon: ShieldCheck, color: 'text-red-400' },
+                         { id: 'audio', label: 'Audio Brief', icon: Mic2, color: 'text-purple-400' },
+                         { id: 'translator', label: 'Translate', icon: Languages, color: 'text-green-400' },
+                         { id: 'threads', label: 'Social Thread', icon: Share2, color: 'text-auurio-accent' },
+                       ].map((tool) => (
+                         <button 
+                           key={tool.id}
+                           onClick={() => onLaunchTool?.(tool.id as NewsToolId, selectedNews.details || selectedNews.impact)}
+                           className="flex items-center gap-3 p-3 bg-white/5 border border-white/10 rounded-xl hover:bg-white/10 hover:border-white/20 transition-all text-left group"
+                         >
+                            <tool.icon className={`w-4 h-4 ${tool.color}`} />
+                            <span className="text-[9px] font-black uppercase text-white/40 group-hover:text-white transition-colors">{tool.label}</span>
+                         </button>
+                       ))}
+                    </div>
+                 </div>
+
                  <div className="flex flex-col sm:flex-row gap-4 pt-4">
                     <button 
-                      onClick={() => alert("Redirecting to analysis unit...")}
+                      onClick={() => onLaunchTool?.('summarizer', selectedNews.details || selectedNews.impact)}
                       className="flex-grow bg-white text-black py-4 lg:py-5 rounded-2xl font-black uppercase tracking-widest text-[9px] lg:text-[10px] flex items-center justify-center gap-3 hover:bg-auurio-accent hover:text-white transition-all shadow-xl shadow-white/5"
                     >
-                      Process with AI <ChevronRight className="w-4 h-4" />
+                      Quick Analysis <ChevronRight className="w-4 h-4" />
                     </button>
                     <button 
                       onClick={() => setSelectedNews(null)}
