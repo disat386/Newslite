@@ -17,7 +17,7 @@ import {
   Sparkles
 } from 'lucide-react';
 import { NewsToolId } from '../types';
-import { generateJSON, generateText, ai } from '../lib/gemini';
+import { generateJSON, generateText, getAI } from '../lib/gemini';
 import { doc, updateDoc, serverTimestamp } from 'firebase/firestore';
 import { db } from '../lib/firebase';
 import { Type } from '@google/genai';
@@ -128,6 +128,8 @@ export const ToolRenderer: React.FC<ToolRendererProps> = ({ toolId, toolName, to
 
     setIsProcessing(true);
     setError(null);
+
+    const ai = getAI();
 
     try {
       const ok = await deductCredit();
