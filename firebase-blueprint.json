@@ -2,32 +2,71 @@
   "entities": {
     "User": {
       "title": "User",
-      "description": "User profile and credits within the Auurio Ecosystem.",
+      "description": "User profile and credit balance within the Auurio ecosystem.",
       "type": "object",
       "properties": {
         "uid": { "type": "string" },
         "email": { "type": "string" },
         "displayName": { "type": "string" },
-        "credits": { "type": "integer", "description": "Unified credits for ecosystem tools" },
-        "updatedAt": { "type": "string", "format": "date-time" }
+        "credits": {
+          "type": "number",
+          "description": "Total available AI credits."
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Last time credits were updated."
+        },
+        "lastLogin": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Last login timestamp."
+        }
       },
-      "required": ["uid", "email", "credits"]
+      "required": [
+        "uid",
+        "email",
+        "credits",
+        "updatedAt"
+      ]
+    },
+    "GeminiKey": {
+      "title": "Gemini Key",
+      "description": "A pooled Gemini API key for rotation.",
+      "type": "object",
+      "properties": {
+        "key": {
+          "type": "string",
+          "description": "The API key string."
+        },
+        "status": {
+          "type": "string",
+          "enum": [
+            "active",
+            "exhausted"
+          ],
+          "description": "Current status of the key."
+        },
+        "lastUsed": {
+          "type": "string",
+          "format": "date-time",
+          "description": "When this key was last attempted."
+        }
+      },
+      "required": [
+        "key",
+        "status"
+      ]
     }
   },
   "firestore": {
     "users/{userId}": {
       "schema": "User",
-      "description": "Users collection for unified credits"
+      "description": "Individual user data."
     },
-    "config/settings": {
-      "schema": {
-        "type": "object",
-        "properties": {
-          "geminiApiKey": { "type": "string" },
-          "apiKey": { "type": "string" }
-        }
-      },
-      "description": "Global application configuration and API keys from the Hub Admin Panel"
+    "gemini_keys/{keyId}": {
+      "schema": "GeminiKey",
+      "description": "Shared API key pool."
     }
   }
 }

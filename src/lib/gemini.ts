@@ -1,5 +1,5 @@
 import { GoogleGenAI } from "@google/genai";
-import { geminiKeyService } from '../services/geminiKeyService';
+import { geminiService } from '../services/geminiService';
 
 export const models = {
   flash: "gemini-3-flash-preview",
@@ -9,7 +9,7 @@ export const models = {
 };
 
 export async function generateText(prompt: string, systemInstruction?: string) {
-  return geminiKeyService.executeWithRotation(async (ai: any) => {
+  return geminiService.executeWithRotation(async (ai: any) => {
     const response = await ai.models.generateContent({
       model: models.flash,
       contents: prompt,
@@ -22,7 +22,7 @@ export async function generateText(prompt: string, systemInstruction?: string) {
 }
 
 export async function generateJSON(prompt: string, schema: any, systemInstruction?: string) {
-  return geminiKeyService.executeWithRotation(async (ai: any) => {
+  return geminiService.executeWithRotation(async (ai: any) => {
     const response = await ai.models.generateContent({
       model: models.flash,
       contents: prompt,
@@ -37,7 +37,7 @@ export async function generateJSON(prompt: string, schema: any, systemInstructio
 }
 
 export async function generateAudio(prompt: string, voiceName: string, tone: string, speed: number, language: string) {
-  return geminiKeyService.executeWithRotation(async (ai: any) => {
+  return geminiService.executeWithRotation(async (ai: any) => {
     // Step 1: Generate Script
     const scriptResponse = await ai.models.generateContent({
       model: models.flash,
@@ -45,10 +45,10 @@ export async function generateAudio(prompt: string, voiceName: string, tone: str
     });
     const script = scriptResponse.text;
 
-    // Step 2: Generate Audio
+    // Step 2: Generate Audio (Using TTS model)
     const audioResponse = await ai.models.generateContent({
       model: models.tts,
-      contents: `Tone: ${tone}. Speed: ${speed}x. Script in ${language}: ${script}`,
+      contents: [{ role: 'user', parts: [{ text: `Tone: ${tone}. Speed: ${speed}x. Script in ${language}: ${script}` }] }],
       config: {
         responseModalities: ["AUDIO"],
         speechConfig: {
@@ -58,12 +58,12 @@ export async function generateAudio(prompt: string, voiceName: string, tone: str
         }
       }
     });
-    return audioResponse; // Return the whole response because it contains the audio data
+    return audioResponse;
   });
 }
 
 export async function getAI() {
-  const key = await geminiKeyService.getNextKey();
+  const key = await geminiService.getBestAvailableKey();
   return new GoogleGenAI({ apiKey: key });
 }
 

@@ -6,13 +6,7 @@ import firebaseConfig from '../../firebase-applet-config.json';
 // Initialize Firebase
 const app = initializeApp(firebaseConfig);
 
-// Dynamic Database Connection
-const sharedDbId = "ai-studio-de511d04-263c-4c44-97d5-a8cf0055a923";
-const dbId = typeof window !== 'undefined' 
-  ? new URLSearchParams(window.location.search).get('db') || sharedDbId
-  : sharedDbId;
-
-export const db = getFirestore(app, dbId);
+export const db = getFirestore(app, (firebaseConfig as any).firestoreDatabaseId || "(default)");
 export const auth = getAuth(app);
 export const googleProvider = new GoogleAuthProvider();
 

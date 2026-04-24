@@ -29,31 +29,41 @@ service cloud.firestore {
 
     // --- Entity Validations ---
     function isValidUser(data) {
-      return data.keys().hasAll(['uid', 'email', 'credits']) &&
+      return data.keys().hasAll(['uid', 'email', 'credits', 'updatedAt']) &&
              data.uid is string && data.uid.size() <= 128 &&
              data.email is string && data.email.size() <= 256 &&
-             data.credits is int && data.credits >= 0;
+             data.credits is number && data.credits >= 0 &&
+             data.updatedAt == request.time;
+    }
+
+    function isValidGeminiKey(data) {
+      return data.keys().hasAll(['key', 'status']) &&
+             data.key is string && data.key.size() <= 256 &&
+             data.status in ['active', 'exhausted'];
     }
 
     // --- Collection Rules ---
-    match /config/settings {
-      allow get: if isSignedIn();
+    match /gemini_keys/{keyId} {
+      allow list, get: if isSignedIn() && resource.data.status == 'active' && isValidId(keyId);
+      // No client writes allowed to keys pool
+      allow write: if false;
     }
 
     match /users/{userId} {
-      allow get: if isOwner(userId);
+      allow get: if isOwner(userId) && isValidId(userId);
       
       // Only allow creators to create their own profile
       allow create: if isOwner(userId) && isValidUser(incoming()) && isValidId(userId);
       
       // Update logic partitioned into actions
-      allow update: if isOwner(userId) && isValidUser(incoming()) && (
-        // Action: Deduct Credits (only allow decreasing)
+      allow update: if isOwner(userId) && isValidId(userId) && (
+        // Action: Deduct Credits (only allow decreasing or same)
         (incoming().diff(existing()).affectedKeys().hasOnly(['credits', 'updatedAt']) && 
-         incoming().credits < existing().credits) ||
+         incoming().credits <= existing().credits && incoming().updatedAt == request.time) ||
         
         // Action: Profile Update
-        (incoming().diff(existing()).affectedKeys().hasOnly(['displayName', 'updatedAt']))
+        (incoming().diff(existing()).affectedKeys().hasOnly(['displayName', 'updatedAt', 'lastLogin']) && 
+         incoming().updatedAt == request.time)
       );
     }
   }

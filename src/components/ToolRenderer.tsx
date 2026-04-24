@@ -60,12 +60,21 @@ export const ToolRenderer: React.FC<ToolRendererProps> = ({
     if (!user || !credits || credits <= 0) return false;
     const newCredits = credits - 1;
     const userRef = doc(db, 'users', user.uid);
-    await updateDoc(userRef, {
-      credits: newCredits,
-      updatedAt: serverTimestamp()
-    });
-    setCredits(newCredits);
-    return true;
+    try {
+      await updateDoc(userRef, {
+        credits: newCredits,
+        updatedAt: serverTimestamp()
+      });
+      setCredits(newCredits);
+      return true;
+    } catch (error: any) {
+      if (error.message?.includes('permission') || error.code === 'permission-denied') {
+        setError("AUR-SEC: Missing Hub Permissions. Please ensure you are logged into your Auurio account at the main hub domain.");
+      } else {
+        setError(`AUR-SYNC: Credit deduction failed. ${error.message}`);
+      }
+      return false;
+    }
   };
 
   const [language, setLanguage] = useState<'English' | 'Bangla' | 'Hindi'>('English');

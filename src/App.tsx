@@ -118,8 +118,12 @@ export default function App() {
         });
         setCredits(100);
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error("Credit sync failed:", error);
+      if (error.message?.includes('permission') || error.code === 'permission-denied') {
+        // We can show a toast or a non-blocking message
+        console.warn("AUR-SEC: Hub sync restricted. Please verify domain authorization in Console.");
+      }
     }
   }, []);
 
