@@ -1,5 +1,5 @@
 import { GoogleGenAI } from "@google/genai";
-import { geminiService } from '../services/geminiService';
+import { geminiKeyService } from '../services/geminiKeyService';
 
 export const models = {
   flash: "gemini-3-flash-preview",
@@ -9,7 +9,7 @@ export const models = {
 };
 
 export async function generateText(prompt: string, systemInstruction?: string) {
-  return geminiService.executeWithRotation(async (ai: any) => {
+  return geminiKeyService.executeWithRotation(async (ai: any) => {
     const response = await ai.models.generateContent({
       model: models.flash,
       contents: prompt,
@@ -22,7 +22,7 @@ export async function generateText(prompt: string, systemInstruction?: string) {
 }
 
 export async function generateJSON(prompt: string, schema: any, systemInstruction?: string) {
-  return geminiService.executeWithRotation(async (ai: any) => {
+  return geminiKeyService.executeWithRotation(async (ai: any) => {
     const response = await ai.models.generateContent({
       model: models.flash,
       contents: prompt,
@@ -37,7 +37,7 @@ export async function generateJSON(prompt: string, schema: any, systemInstructio
 }
 
 export async function generateAudio(prompt: string, voiceName: string, tone: string, speed: number, language: string) {
-  return geminiService.executeWithRotation(async (ai: any) => {
+  return geminiKeyService.executeWithRotation(async (ai: any) => {
     // Step 1: Generate Script
     const scriptResponse = await ai.models.generateContent({
       model: models.flash,
@@ -63,7 +63,7 @@ export async function generateAudio(prompt: string, voiceName: string, tone: str
 }
 
 export async function getAI() {
-  const key = await geminiService.getBestAvailableKey();
+  const key = await geminiKeyService.getBestAvailableKey();
   return new GoogleGenAI({ apiKey: key });
 }
 

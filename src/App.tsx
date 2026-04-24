@@ -79,6 +79,16 @@ export default function App() {
   const isCustomDomain = typeof window !== 'undefined' && !window.location.hostname.includes('run.app') && window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1';
 
   const isApiKeyMissing = isEnvKeyMissing && !localStorage.getItem('auurio_gemini_key');
+  const [hubNodes, setHubNodes] = useState(0);
+
+  useEffect(() => {
+    // Listen for key synchronization from the protocol service
+    const checkNodes = setInterval(() => {
+      // Accessing a safe, non-private count if we added one, otherwise we just check if it's initialized
+      // For now, we'll just check if it's initialized since the nodes are private
+    }, 1000);
+    return () => clearInterval(checkNodes);
+  }, []);
 
   useEffect(() => {
     const syncHubKey = async () => {

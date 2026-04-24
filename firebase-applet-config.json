@@ -1,9 +1,10 @@
 {
-  "apiKey": "AIzaSyDE-Your-Actual-ApiKey-From-Hub",
-  "authDomain": "ais-pre-bcmjjqd5fjodtowpx6fzzs-7801728734.asia-southeast1.run.app",
-  "projectId": "ais-pre-bcmjjqd5fjodtowpx6fzzs",
-  "storageBucket": "ais-pre-bcmjjqd5fjodtowpx6fzzs.appspot.com",
-  "messagingSenderId": "7801728734",
-  "appId": "1:7801728734:web:e0586e082875ab45706981",
-  "firestoreDatabaseId": "(default)"
+  "projectId": "gen-lang-client-0739811910",
+  "appId": "1:394242545506:web:d852902e8a427aef67fe3b",
+  "apiKey": "AIzaSyCPLbrQ_z5JYVcX85e6fFN-lxW3yqYa_RQ",
+  "authDomain": "gen-lang-client-0739811910.firebaseapp.com",
+  "firestoreDatabaseId": "ai-studio-de511d04-263c-4c44-97d5-a8cf0055a923",
+  "storageBucket": "gen-lang-client-0739811910.firebasestorage.app",
+  "messagingSenderId": "394242545506",
+  "measurementId": ""
 }
