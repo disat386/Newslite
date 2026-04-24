@@ -60,11 +60,13 @@ export const DailyNewsDashboard: React.FC<DailyNewsDashboardProps> = ({ onLaunch
       try {
         const regionQuery = selectedRegion === 'Global' ? 'global' : `specific to ${selectedRegion}`;
         const targetLang = getRegionLanguage(selectedRegion);
+        const today = new Date().toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
         
-        const result = await generateJSON(`Current top ${regionQuery} news topics for today. 
-          Provide a list of 15 items with comprehensive summaries (at least 200 words each). 
-          IMPORTANT: For regions other than USA/UK/Global, provide titles and categories in both ${targetLang} and English.
-          Format titles as "Title in ${targetLang} | English Title" or similar dual-language format.`, {
+        // Fetching list without full details for speed
+        const result = await generateJSON(`Current top ${regionQuery} news topics for today, ${today}. 
+          Provide a list of 12 items with sharp, punchy summaries. 
+          STRICT: Only news from the last 24h. No placeholders.
+          Format titles as "Title in Language | English Title" for non-US regions.`, {
           type: Type.ARRAY,
           items: {
             type: Type.OBJECT,
@@ -72,11 +74,10 @@ export const DailyNewsDashboard: React.FC<DailyNewsDashboardProps> = ({ onLaunch
               title: { type: Type.STRING },
               category: { type: Type.STRING },
               time: { type: Type.STRING },
-              impact: { type: Type.STRING },
-              details: { type: Type.STRING }
+              impact: { type: Type.STRING }
             }
           }
-        }, `You are the NewsLite Daily Dashboard. Curate technical and ${selectedRegion} news with depth. Current Region: ${selectedRegion}, Preferred Language: ${targetLang}.`);
+        }, `NewsLite High-Speed Curate. Region: ${selectedRegion}. Lang: ${targetLang}.`);
         setNews(result);
         setLoading(false);
       } catch (e) {
@@ -87,6 +88,33 @@ export const DailyNewsDashboard: React.FC<DailyNewsDashboardProps> = ({ onLaunch
     }
     fetchNews();
   }, [selectedRegion]);
+
+  const [detailLoading, setDetailLoading] = useState(false);
+
+  const handleSelectNews = async (item: any) => {
+    setSelectedNews(item);
+    if (!item.details) {
+      setDetailLoading(true);
+      try {
+        const result = await generateJSON(`Provide a very detailed, comprehensive analysis (at least 300 words) for this news item: "${item.title}".
+          Include context, potential future implications, and diverse perspectives.
+          User requested maximum detail.`, {
+          type: Type.OBJECT,
+          properties: {
+            details: { type: Type.STRING }
+          }
+        }, "Expert Investigative Journalist. Depth and nuance are mandatory.");
+        
+        const updatedNews = news.map(n => n.title === item.title ? { ...n, details: result.details } : n);
+        setNews(updatedNews);
+        setSelectedNews({ ...item, details: result.details });
+      } catch (e) {
+        console.error("Failed to fetch details:", e);
+      } finally {
+        setDetailLoading(false);
+      }
+    }
+  };
 
   if (loading) return (
     <div className="flex flex-col items-center justify-center min-h-[400px] text-white/20 gap-6">
@@ -135,8 +163,8 @@ export const DailyNewsDashboard: React.FC<DailyNewsDashboardProps> = ({ onLaunch
                 Live Pulse Feed
                 {refreshing && <span className="text-auurio-accent/50 animate-pulse lowercase font-medium tracking-normal text-[8px]">Syncing...</span>}
               </h3>
-              <div className="flex items-center gap-2 overflow-x-auto no-scrollbar max-w-full pb-2 -mb-2">
-                 <div className="flex items-center gap-2 flex-nowrap pr-4">
+              <div className="flex items-center gap-2 overflow-x-auto no-scrollbar max-w-full pb-3 -mb-3 scroll-smooth">
+                 <div className="flex items-center gap-2 flex-nowrap pr-12">
                    {regions.map(region => (
                      <button
                        key={region}
@@ -161,7 +189,7 @@ export const DailyNewsDashboard: React.FC<DailyNewsDashboardProps> = ({ onLaunch
                     initial={{ opacity: 0, x: -20 }} 
                     animate={{ opacity: 1, x: 0 }} 
                     transition={{ delay: i * 0.05 }}
-                    onClick={() => setSelectedNews(item)}
+                    onClick={() => handleSelectNews(item)}
                     className="glass-card rounded-2xl lg:rounded-[2rem] p-5 lg:p-6 border-white/10 hover:bg-white/5 transition-all group cursor-pointer hover:border-auurio-accent/30"
                   >
                      <div className="flex justify-between items-start mb-3 lg:mb-4">
@@ -281,10 +309,17 @@ export const DailyNewsDashboard: React.FC<DailyNewsDashboardProps> = ({ onLaunch
                    {selectedNews.title}
                  </h2>
 
-                 <div className="p-6 lg:p-8 bg-white/5 rounded-3xl border border-white/5 max-h-60 overflow-y-auto custom-scrollbar">
-                   <p className="text-xs lg:text-sm text-white/60 leading-relaxed font-medium whitespace-pre-wrap">
-                     {selectedNews.details || selectedNews.impact}
-                   </p>
+                 <div className="p-6 lg:p-8 bg-white/5 rounded-3xl border border-white/5 max-h-60 overflow-y-auto custom-scrollbar relative min-h-[120px]">
+                   {detailLoading ? (
+                     <div className="absolute inset-0 flex flex-col items-center justify-center gap-4 bg-black/20 backdrop-blur-sm rounded-3xl">
+                        <Loader2 className="w-6 h-6 animate-spin text-auurio-accent" />
+                        <span className="text-[9px] font-black uppercase text-white/40 tracking-widest animate-pulse">Deep-Linking Analysis...</span>
+                     </div>
+                   ) : (
+                     <p className="text-xs lg:text-sm text-white/60 leading-relaxed font-medium whitespace-pre-wrap">
+                       {selectedNews.details || selectedNews.impact}
+                     </p>
+                   )}
                  </div>
 
                  <div className="space-y-4">

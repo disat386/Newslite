@@ -611,8 +611,13 @@ export const ToolRenderer: React.FC<ToolRendererProps> = ({
                       </div>
 
                       {result.biases && result.biases.length > 0 && (
-                        <div className="glass-card rounded-2xl lg:rounded-3xl p-6 lg:p-8 border-yellow-500/10 bg-yellow-500/5">
-                           <h3 className="text-yellow-500/40 text-[9px] lg:text-[10px] uppercase font-black tracking-widest mb-3">Detected Biases</h3>
+                        <div className="glass-card rounded-2xl lg:rounded-3xl p-6 lg:p-8 border-yellow-500/10 bg-yellow-500/5 relative">
+                           <div className="flex justify-between items-center mb-3">
+                              <h3 className="text-yellow-500/40 text-[9px] lg:text-[10px] uppercase font-black tracking-widest">Detected Biases</h3>
+                              <button onClick={() => copyToClipboard(result.biases.join(', '))} className="text-white/20 hover:text-white transition-colors">
+                                 <Copy className="w-3 h-3" />
+                              </button>
+                           </div>
                            <div className="flex flex-wrap gap-2">
                               {result.biases.map((bias: string, i: number) => (
                                 <span key={i} className="text-[8px] lg:text-[9px] font-black uppercase px-2 py-1 bg-yellow-500/20 text-yellow-600 rounded border border-yellow-500/20">
@@ -748,7 +753,10 @@ export const ToolRenderer: React.FC<ToolRendererProps> = ({
                    </div>
                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 lg:gap-6">
                       <div className="glass-card rounded-2xl lg:rounded-3xl p-6 lg:p-8 border-green-500/10 bg-green-500/5">
-                        <h4 className="text-[9px] lg:text-[10px] font-black uppercase text-green-500/40 mb-4 lg:mb-6">Pro Alignment</h4>
+                        <div className="flex justify-between items-center mb-4 lg:mb-6">
+                           <h4 className="text-[9px] lg:text-[10px] font-black uppercase text-green-500/40">Pro Alignment</h4>
+                           <button onClick={() => copyToClipboard(result.proArguments.join('\n'))} className="text-green-500/30 hover:text-green-500 transition-colors"><Copy className="w-3.5 h-3.5" /></button>
+                        </div>
                         <ul className="space-y-3 lg:space-y-4">
                            {result.proArguments.map((arg: string, i: number) => (
                              <li key={i} className="text-[11px] lg:text-xs font-bold leading-relaxed flex gap-2">
@@ -759,7 +767,10 @@ export const ToolRenderer: React.FC<ToolRendererProps> = ({
                         </ul>
                       </div>
                       <div className="glass-card rounded-2xl lg:rounded-3xl p-6 lg:p-8 border-red-500/10 bg-red-500/5">
-                        <h4 className="text-[9px] lg:text-[10px] font-black uppercase text-red-500/40 mb-4 lg:mb-6">Con Alignment</h4>
+                        <div className="flex justify-between items-center mb-4 lg:mb-6">
+                           <h4 className="text-[9px] lg:text-[10px] font-black uppercase text-red-500/40">Con Alignment</h4>
+                           <button onClick={() => copyToClipboard(result.conArguments.join('\n'))} className="text-red-500/30 hover:text-red-500 transition-colors"><Copy className="w-3.5 h-3.5" /></button>
+                        </div>
                         <ul className="space-y-3 lg:space-y-4">
                            {result.conArguments.map((arg: string, i: number) => (
                              <li key={i} className="text-[11px] lg:text-xs font-bold leading-relaxed flex gap-2">
