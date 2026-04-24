@@ -5,12 +5,13 @@ import { doc, getDoc } from 'firebase/firestore';
 let dynamicApiKey: string | null = null;
 
 const getApiKey = async () => {
-  // 1. Check process.env (Server/Vite)
-  const envKey = process.env.GEMINI_API_KEY || (import.meta as any).env?.VITE_GEMINI_API_KEY;
-  if (envKey) return envKey;
+  const isLocal = typeof window !== 'undefined' && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1');
+  const isDevPreview = typeof window !== 'undefined' && window.location.hostname.includes('run.app');
 
-  // 2. Check Cache
+  // 1. Check Memory Cache
   if (dynamicApiKey) return dynamicApiKey;
+
+  // 2. Check LocalStorage Cache
   if (typeof window !== 'undefined') {
     const cached = localStorage.getItem('auurio_gemini_key');
     if (cached) {
@@ -19,14 +20,23 @@ const getApiKey = async () => {
     }
   }
 
-  // 3. Fetch from Hub (Firestore config)
+  // 3. Fetch from Hub (Firestore config) - High Priority
   try {
     const configRef = doc(db, 'config', 'settings');
-    const configSnap = await getDoc(configRef);
+    let configSnap = await getDoc(configRef);
+    
+    // If not found and custom domain, auth might still be initializing, wait briefly and retry once
+    if (!configSnap.exists() && !isLocal && !isDevPreview) {
+      console.log("Intelligence Protocol: Hub Sync pending... waiting 1s.");
+      await new Promise(r => setTimeout(r, 1000));
+      configSnap = await getDoc(configRef);
+    }
+
     if (configSnap.exists()) {
       const data = configSnap.data();
       const hubKey = data.geminiApiKey || data.apiKey;
       if (hubKey) {
+        console.log("Intelligence Protocol: Hub Key Synchronized.");
         dynamicApiKey = hubKey;
         if (typeof window !== 'undefined') {
           localStorage.setItem('auurio_gemini_key', hubKey);
@@ -35,13 +45,17 @@ const getApiKey = async () => {
       }
     }
   } catch (error) {
-    console.error("Hub Key Sync Error:", error);
+    console.warn("Hub Key Sync Offline (Permission/Network):", error);
   }
 
-  // 4. Fallback/Error
-  const isLocal = typeof window !== 'undefined' && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1');
-  const isDevPreview = typeof window !== 'undefined' && window.location.hostname.includes('run.app');
-  
+  // 4. Fallback to Environment Keys (Build-time)
+  const envKey = process.env.GEMINI_API_KEY || (import.meta as any).env?.VITE_GEMINI_API_KEY;
+  if (envKey) {
+    console.log("Intelligence Protocol: Using Environment Fallback.");
+    return envKey;
+  }
+
+  // 5. Fallback/Error for Custom Domains
   if (!isLocal && !isDevPreview) {
     throw new Error("NewsLite Error: Protocol Offline. GEMINI_API_KEY missing in Hub and environment. Ensure your Admin Panel has set the API key in config/settings.");
   }
@@ -50,13 +64,18 @@ const getApiKey = async () => {
 };
 
 let genAI: GoogleGenAI | null = null;
+let currentKey: string | null = null;
 
 export async function getAI() {
-  if (!genAI) {
-    const key = await getApiKey();
-    if (!key) throw new Error("GEMINI_API_KEY is not available.");
+  const key = await getApiKey();
+  
+  if (!genAI || key !== currentKey) {
+    if (!key) throw new Error("GEMINI_API_KEY is not available protocol-wide.");
     genAI = new GoogleGenAI({ apiKey: key });
+    currentKey = key;
+    console.log("Intelligence Protocol: Neural Network re-calibrated.");
   }
+  
   return genAI;
 }
 

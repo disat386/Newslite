@@ -82,10 +82,11 @@ export default function App() {
 
   useEffect(() => {
     const syncHubKey = async () => {
-      if (isEnvKeyMissing && !localStorage.getItem('auurio_gemini_key')) {
+      // Re-sync if env key is missing AND we don't have a cached key OR user just logged in
+      if (isEnvKeyMissing) {
         setIsSyncingKey(true);
         try {
-          // Trigger the fetch logic in gemini.ts which handles localstorage/firestore
+          // Reset internal state in gemini.ts if needed (though it caches in memory)
           await getAI();
         } catch (e) {
           console.error("Hub Sync Background Error:", e);
@@ -95,7 +96,7 @@ export default function App() {
       }
     };
     syncHubKey();
-  }, [isEnvKeyMissing]);
+  }, [isEnvKeyMissing, user]);
   const launchToolWithInput = useCallback((toolId: NewsToolId, input: string) => {
     setPrefilledInput(input);
     setActiveTool(toolId);
