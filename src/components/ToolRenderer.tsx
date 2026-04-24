@@ -17,7 +17,7 @@ import {
   Sparkles
 } from 'lucide-react';
 import { NewsToolId } from '../types';
-import { generateJSON, generateText, getAI } from '../lib/gemini';
+import { generateJSON, generateText, getAI, generateAudio } from '../lib/gemini';
 import { doc, updateDoc, serverTimestamp } from 'firebase/firestore';
 import { db } from '../lib/firebase';
 import { Type } from '@google/genai';
@@ -302,24 +302,13 @@ export const ToolRenderer: React.FC<ToolRendererProps> = ({
           break;
 
         case 'audio':
-          aiResult = await ai.models.generateContent({
-            model: "gemini-1.5-flash", // Use 1.5 flash for prompt processing
-            contents: [{ parts: [{ text: `Generate a high-quality news report script in ${language} based on this: ${currentInput}. Make it professional. Tone: ${audioSettings.tone}.` }] }]
-          });
-          const reportScript = aiResult.response.text();
-          
-          aiResult = await ai.models.generateContent({
-            model: "gemini-3.1-flash-tts-preview",
-            contents: [{ parts: [{ text: `Tone: ${audioSettings.tone}. Speed: ${audioSettings.speed}x. Script in ${language}: ${reportScript}` }] }],
-            config: {
-              responseModalities: ["AUDIO"],
-              speechConfig: {
-                voiceConfig: {
-                  prebuiltVoiceConfig: { voiceName: audioSettings.voice }
-                }
-              }
-            }
-          });
+          aiResult = await generateAudio(
+            currentInput, 
+            audioSettings.voice, 
+            audioSettings.tone, 
+            audioSettings.speed, 
+            language
+          );
           break;
 
         case 'alerts':
