@@ -2,69 +2,87 @@ import { GoogleGenAI, Type } from "@google/genai";
 import { db } from './firebase';
 import { doc, getDoc } from 'firebase/firestore';
 
+let keyPool: string[] = [];
+let exhaustedKeys: Set<string> = new Set();
 let dynamicApiKey: string | null = null;
 
 const getApiKey = async (force: boolean = false) => {
   const isLocal = typeof window !== 'undefined' && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1');
   const isDevPreview = typeof window !== 'undefined' && window.location.hostname.includes('run.app');
 
-  // 1. Check Memory Cache (unless forced)
-  if (dynamicApiKey && !force) return dynamicApiKey;
+  // 1. Check Memory Cache (unless forced or current key is exhausted)
+  if (dynamicApiKey && !force && !exhaustedKeys.has(dynamicApiKey)) return dynamicApiKey;
 
-  // 2. Check LocalStorage Cache (unless forced)
-  if (typeof window !== 'undefined' && !force) {
-    const cached = localStorage.getItem('auurio_gemini_key');
-    if (cached) {
-      dynamicApiKey = cached;
-      return cached;
-    }
-  }
-
-  // 3. Fetch from Hub (Firestore config) - High Priority
+  // 2. Fetch from Hub (Firestore Rotation Pool) - Higher Priority
   try {
-    const configRef = doc(db, 'config', 'settings');
-    let configSnap = await getDoc(configRef);
+    // Specifically targeting the shared path requested: settings/api_keys
+    const keysRef = doc(db, 'settings', 'api_keys');
+    let keysSnap = await getDoc(keysRef);
     
-    // If not found and custom domain, auth might still be initializing, wait briefly and retry once
-    if (!configSnap.exists() && !isLocal && !isDevPreview) {
-      console.log("Intelligence Protocol: Hub Sync pending... waiting 1s.");
+    // Auth initialization buffer for custom domains
+    if (!keysSnap.exists() && !isLocal && !isDevPreview) {
+      console.log("Intelligence Protocol: Key Pool Sync pending...");
       await new Promise(r => setTimeout(r, 1000));
-      configSnap = await getDoc(configRef);
+      keysSnap = await getDoc(keysRef);
     }
 
-    if (configSnap.exists()) {
-      const data = configSnap.data();
-      // Handle both single key and possible array/rotation field if hub provides it differently
-      const hubKey = data.geminiApiKey || data.apiKey;
+    if (keysSnap.exists()) {
+      const data = keysSnap.data();
+      // Handle both array of keys or a single key field
+      const pool = data.keys || data.apiKeys || (data.apiKey ? [data.apiKey] : []);
       
-      if (hubKey) {
-        if (force) {
-          console.log("Intelligence Protocol: Hub Rotation Detected. Synchronizing fresh key...");
-        } else {
-          console.log("Intelligence Protocol: Hub Key Synchronized.");
-        }
+      if (Array.isArray(pool) && pool.length > 0) {
+        keyPool = pool.filter(k => !exhaustedKeys.has(k));
         
-        dynamicApiKey = hubKey;
-        if (typeof window !== 'undefined') {
-          localStorage.setItem('auurio_gemini_key', hubKey);
+        // If all pooled keys are exhausted in this session, reset the exhausted set to try again
+        if (keyPool.length === 0 && exhaustedKeys.size > 0) {
+          console.warn("Intelligence Protocol: All pooled keys exhausted. Resetting session rotation.");
+          exhaustedKeys.clear();
+          keyPool = pool;
         }
-        return hubKey;
+
+        if (keyPool.length > 0) {
+          // Pick a random key from the available pool for distribution
+          const randomIndex = Math.floor(Math.random() * keyPool.length);
+          dynamicApiKey = keyPool[randomIndex];
+          console.log(`Intelligence Protocol: Hub Key Synchronized (Pool Size: ${pool.length}).`);
+          return dynamicApiKey;
+        }
       }
     }
   } catch (error) {
-    console.warn("Hub Key Sync Offline (Permission/Network):", error);
+    console.warn("Hub Key Pool Offline:", error);
   }
 
-  // 4. Fallback to Environment Keys (Build-time)
+  // 3. Fallback to Legacy Hub Path (config/settings)
+  try {
+    const legacyRef = doc(db, 'config', 'settings');
+    const legacySnap = await getDoc(legacyRef);
+    if (legacySnap.exists()) {
+      const data = legacySnap.data();
+      const legacyKey = data.geminiApiKey || data.apiKey;
+      if (legacyKey && !exhaustedKeys.has(legacyKey)) {
+        dynamicApiKey = legacyKey;
+        return legacyKey;
+      }
+    }
+  } catch (e) {
+    // Silent fail for legacy
+  }
+
+  // 4. Final Fallback to Environment Keys (Production Build)
   const envKey = process.env.GEMINI_API_KEY || (import.meta as any).env?.VITE_GEMINI_API_KEY;
-  if (envKey) {
+  if (envKey && !exhaustedKeys.has(envKey)) {
     console.log("Intelligence Protocol: Using Environment Fallback.");
     return envKey;
   }
 
-  // 5. Fallback/Error for Custom Domains
+  // 5. Critical Failure Handling
   if (!isLocal && !isDevPreview) {
-    throw new Error("NewsLite Error: Protocol Offline. GEMINI_API_KEY missing in Hub and environment. Ensure your Admin Panel has set the API key in config/settings.");
+    if (exhaustedKeys.size > 0) {
+      throw new Error("NewsLite Error: All available API protocols have reached quota limits. Please try again in 60s.");
+    }
+    throw new Error("NewsLite Error: Protocol Offline. No API keys found in Hub or Environment.");
   }
   
   return '';
@@ -80,7 +98,7 @@ export async function getAI(force: boolean = false) {
     if (!key) throw new Error("GEMINI_API_KEY is not available protocol-wide.");
     genAI = new GoogleGenAI({ apiKey: key });
     currentKey = key;
-    console.log("Intelligence Protocol: Neural Network re-calibrated.");
+    console.log("Intelligence Protocol: Neural Network re-calibrated with fresh key.");
   }
   
   return genAI;
@@ -106,16 +124,15 @@ export async function generateText(prompt: string, systemInstruction?: string, r
   } catch (error: any) {
     const isQuotaError = error.message?.includes('429') || error.message?.includes('quota') || error.status === 429;
     
-    if (isQuotaError && retryCount < 1) {
-      console.warn("Intelligence Protocol: Quota detected. Requesting Hub Rotation...");
-      // Invalidate the key and retry immediately
+    if (isQuotaError && retryCount < 2) { // Allow up to 2 retries if we have a pool
+      console.warn(`Intelligence Protocol: Key Quota limit [${currentKey?.slice(-4)}]. Requesting Hub Rotation...`);
+      if (currentKey) exhaustedKeys.add(currentKey);
       dynamicApiKey = null;
-      if (typeof window !== 'undefined') localStorage.removeItem('auurio_gemini_key');
       return generateText(prompt, systemInstruction, retryCount + 1);
     }
 
     if (isQuotaError) {
-      throw new Error("QUOTA_EXCEEDED: Key Rotation limit reached. Please wait 60s or check rotation status in Hub.");
+      throw new Error("QUOTA_EXCEEDED: Key Rotation limit reached. All pooled protocols are busy.");
     }
     throw error;
   }
@@ -137,17 +154,17 @@ export async function generateJSON(prompt: string, schema: any, systemInstructio
   } catch (error: any) {
     const isQuotaError = error.message?.includes('429') || error.message?.includes('quota') || error.status === 429;
     
-    if (isQuotaError && retryCount < 1) {
-      console.warn("Intelligence Protocol: Quota detected. Requesting Hub Rotation...");
-      // Invalidate the key and retry immediately
+    if (isQuotaError && retryCount < 2) {
+      console.warn(`Intelligence Protocol: Key Quota limit [${currentKey?.slice(-4)}]. Requesting Hub Rotation...`);
+      if (currentKey) exhaustedKeys.add(currentKey);
       dynamicApiKey = null;
-      if (typeof window !== 'undefined') localStorage.removeItem('auurio_gemini_key');
       return generateJSON(prompt, schema, systemInstruction, retryCount + 1);
     }
 
     if (isQuotaError) {
-      throw new Error("QUOTA_EXCEEDED: Key Rotation limit reached. Please wait 60s or check rotation status in Hub.");
+      throw new Error("QUOTA_EXCEEDED: Key Rotation limit reached. All pooled protocols are busy.");
     }
     throw error;
   }
 }
+
