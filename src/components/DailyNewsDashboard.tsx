@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { motion } from 'motion/react';
+import { motion, AnimatePresence } from 'motion/react';
 import { 
   TrendingUp, 
   Newspaper, 
@@ -9,7 +9,10 @@ import {
   User, 
   ArrowUpRight,
   ExternalLink,
-  Loader2
+  Loader2,
+  X,
+  ShieldCheck,
+  ChevronRight
 } from 'lucide-react';
 import { generateJSON } from '../lib/gemini';
 import { Type } from '@google/genai';
@@ -17,11 +20,12 @@ import { Type } from '@google/genai';
 export const DailyNewsDashboard: React.FC = () => {
   const [news, setNews] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [selectedNews, setSelectedNews] = useState<any | null>(null);
 
   useEffect(() => {
     async function fetchNews() {
       try {
-        const result = await generateJSON("Current top global news topics for today. Provide a list of 5 items.", {
+        const result = await generateJSON("Current top global news topics for today. Provide a list of 5 items with detailed descriptions.", {
           type: Type.ARRAY,
           items: {
             type: Type.OBJECT,
@@ -29,7 +33,8 @@ export const DailyNewsDashboard: React.FC = () => {
               title: { type: Type.STRING },
               category: { type: Type.STRING },
               time: { type: Type.STRING },
-              impact: { type: Type.STRING }
+              impact: { type: Type.STRING },
+              details: { type: Type.STRING }
             }
           }
         }, "You are the NewsLite Daily Dashboard. Curate technical and global news.");
@@ -62,7 +67,7 @@ export const DailyNewsDashboard: React.FC = () => {
           <motion.div 
             key={i}
             initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.1 }}
-            className="glass-card rounded-2xl lg:rounded-3xl p-4 lg:p-6 border-white/10 flex flex-col justify-between aspect-square lg:aspect-video"
+            className="glass-card rounded-2xl lg:rounded-3xl p-4 lg:p-6 border-white/10 flex flex-col justify-between aspect-square lg:aspect-video cursor-default hover:border-white/20 transition-all"
           >
              <div className="flex justify-between items-start">
                <stat.icon className={`w-4 h-4 lg:w-5 lg:h-5 ${stat.color}`} />
@@ -86,8 +91,11 @@ export const DailyNewsDashboard: React.FC = () => {
               {news.map((item, i) => (
                 <motion.div 
                   key={i}
-                  initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: i * 0.1 }}
-                  className="glass-card rounded-2xl lg:rounded-[2rem] p-5 lg:p-6 border-white/10 hover:bg-white/5 transition-all group cursor-pointer"
+                  initial={{ opacity: 0, x: -20 }} 
+                  animate={{ opacity: 1, x: 0 }} 
+                  transition={{ delay: i * 0.1 }}
+                  onClick={() => setSelectedNews(item)}
+                  className="glass-card rounded-2xl lg:rounded-[2rem] p-5 lg:p-6 border-white/10 hover:bg-white/5 transition-all group cursor-pointer hover:border-auurio-accent/30"
                 >
                    <div className="flex justify-between items-start mb-3 lg:mb-4">
                       <div className="flex items-center gap-2">
@@ -113,7 +121,10 @@ export const DailyNewsDashboard: React.FC = () => {
               <p className="text-[10px] lg:text-xs text-white/50 leading-relaxed font-medium mb-8">
                  Unlock scene-by-scene video generation and high-fidelity audio by upgrading your unit level.
               </p>
-              <button className="w-full bg-auurio-accent text-white py-4 rounded-2xl font-black uppercase tracking-widest text-[9px] lg:text-[10px] shadow-lg shadow-auurio-accent/20">
+              <button 
+                onClick={() => alert("Upgrade system initializing. Contact ecosystem admin for token acquisition.")}
+                className="w-full bg-auurio-accent text-white py-4 rounded-2xl font-black uppercase tracking-widest text-[9px] lg:text-[10px] shadow-lg shadow-auurio-accent/20 hover:scale-[1.02] active:scale-[0.98] transition-all"
+              >
                 Unlock Full Power
               </button>
            </div>
@@ -126,7 +137,7 @@ export const DailyNewsDashboard: React.FC = () => {
                   { tool: 'Fact Checker', time: '1h ago', status: 'Flagged' },
                   { tool: 'Translator', time: '3h ago', status: 'Success' },
                 ].map((log, i) => (
-                  <div key={i} className="flex justify-between items-center text-[9px] lg:text-[10px] font-black uppercase">
+                  <div key={i} className="flex justify-between items-center text-[9px] lg:text-[10px] font-black uppercase hover:bg-white/5 p-2 rounded-lg cursor-default transition-all">
                      <div className="flex flex-col">
                         <span className="text-white/60">{log.tool}</span>
                         <span className="text-white/20 italic font-medium">{log.time}</span>
@@ -138,6 +149,68 @@ export const DailyNewsDashboard: React.FC = () => {
            </div>
         </div>
       </div>
+
+      <AnimatePresence>
+        {selectedNews && (
+          <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 lg:p-10">
+            <motion.div 
+              initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+              onClick={() => setSelectedNews(null)}
+              className="absolute inset-0 bg-black/80 backdrop-blur-md"
+            />
+            <motion.div 
+              initial={{ opacity: 0, scale: 0.9, y: 20 }} 
+              animate={{ opacity: 1, scale: 1, y: 0 }} 
+              exit={{ opacity: 0, scale: 0.9, y: 20 }}
+              className="relative w-full max-w-2xl max-h-[90vh] overflow-y-auto glass-card rounded-[2.5rem] lg:rounded-[3.5rem] p-8 lg:p-12 border-white/10 custom-scrollbar"
+            >
+              <div className="absolute top-8 right-8 z-20">
+                <button 
+                  onClick={() => setSelectedNews(null)}
+                  className="p-3 bg-white/5 hover:bg-white/10 rounded-full border border-white/10 transition-all"
+                >
+                  <X className="w-5 h-5 text-white/50" />
+                </button>
+              </div>
+
+              <div className="relative z-10 space-y-6 lg:space-y-8">
+                 <div className="flex items-center gap-3">
+                   <span className="text-[9px] font-black uppercase px-3 py-1 bg-auurio-accent/10 text-auurio-accent border border-auurio-accent/20 rounded-full">{selectedNews.category}</span>
+                   <span className="text-[9px] font-black uppercase text-white/20 italic">{selectedNews.time}</span>
+                 </div>
+
+                 <h2 className="text-2xl lg:text-4xl font-black italic tracking-tighter uppercase leading-none">
+                   {selectedNews.title}
+                 </h2>
+
+                 <div className="p-6 lg:p-8 bg-white/5 rounded-3xl border border-white/5">
+                   <p className="text-xs lg:text-sm text-white/60 leading-relaxed font-medium">
+                     {selectedNews.details || selectedNews.impact}
+                   </p>
+                 </div>
+
+                 <div className="flex flex-col sm:flex-row gap-4 pt-4">
+                    <button 
+                      onClick={() => alert("Redirecting to analysis unit...")}
+                      className="flex-grow bg-white text-black py-4 lg:py-5 rounded-2xl font-black uppercase tracking-widest text-[9px] lg:text-[10px] flex items-center justify-center gap-3 hover:bg-auurio-accent hover:text-white transition-all shadow-xl shadow-white/5"
+                    >
+                      Process with AI <ChevronRight className="w-4 h-4" />
+                    </button>
+                    <button 
+                      onClick={() => setSelectedNews(null)}
+                      className="px-8 bg-white/5 border border-white/10 text-white/40 py-4 lg:py-5 rounded-2xl font-black uppercase tracking-widest text-[9px] lg:text-[10px] hover:text-white hover:bg-white/10 transition-all"
+                    >
+                      Dismiss
+                    </button>
+                 </div>
+              </div>
+
+              <Zap className="absolute -bottom-20 -left-20 w-80 h-80 text-auurio-accent/5 pointer-events-none" />
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
     </div>
   );
 };
+

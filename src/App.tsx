@@ -69,6 +69,8 @@ export default function App() {
   const [isProcessing, setIsProcessing] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [isMenuOpen, setIsMenuOpen] = useState(false);
+  const [showSettings, setShowSettings] = useState(false);
+  const [showHelp, setShowHelp] = useState(false);
 
   const syncUserCredits = useCallback(async (currentUser: User) => {
     const userRef = doc(db, 'users', currentUser.uid);
@@ -282,8 +284,18 @@ export default function App() {
                <span className="text-[10px] font-black tracking-widest uppercase">Zap protocol</span>
             </div>
             <div className="hidden sm:block w-px h-6 bg-white/10" />
-            <button className="p-2 hover:bg-white/5 rounded-lg transition-colors"><Settings className="w-4 h-4 text-white/40" /></button>
-            <button className="p-2 hover:bg-white/5 rounded-lg transition-colors hidden sm:block"><HelpCircle className="w-4 h-4 text-white/40" /></button>
+            <button 
+              onClick={() => setShowSettings(true)}
+              className="p-2 hover:bg-white/5 rounded-lg transition-colors"
+            >
+              <Settings className="w-4 h-4 text-white/40" />
+            </button>
+            <button 
+              onClick={() => setShowHelp(true)}
+              className="p-2 hover:bg-white/5 rounded-lg transition-colors hidden sm:block"
+            >
+              <HelpCircle className="w-4 h-4 text-white/40" />
+            </button>
           </div>
         </header>
 
@@ -337,11 +349,71 @@ export default function App() {
               <a href="https://auurio.com" target="_blank" rel="noreferrer" className="hover:text-auurio-accent transition-colors flex items-center gap-1.5">
                 Central Hub <ExternalLink className="w-2.5 h-2.5" />
               </a>
-              <span className="cursor-not-allowed">Terms</span>
-              <span className="cursor-not-allowed">Privacy</span>
+              <button onClick={() => setShowHelp(true)} className="hover:text-white transition-colors">Terms</button>
+              <button onClick={() => setShowHelp(true)} className="hover:text-white transition-colors">Privacy</button>
            </div>
         </footer>
       </main>
+
+      <AnimatePresence>
+        {showSettings && (
+          <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => setShowSettings(false)} className="absolute inset-0 bg-black/60 backdrop-blur-sm" />
+            <motion.div 
+              initial={{ opacity: 0, scale: 0.9, y: 20 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.9, y: 20 }}
+              className="relative w-full max-w-md glass-card rounded-3xl p-8 border-white/10"
+            >
+              <h3 className="text-xl font-black italic tracking-tighter uppercase mb-6">Unit Configuration</h3>
+              <div className="space-y-6">
+                <div className="space-y-2">
+                  <label className="text-[9px] uppercase font-black text-white/30 tracking-widest">Protocol Version</label>
+                  <div className="p-3 bg-white/5 rounded-xl border border-white/10 text-xs font-bold text-white/60">v1.2.4-stable (Neural Hub Linked)</div>
+                </div>
+                <div className="space-y-4">
+                  <h4 className="text-[9px] uppercase font-black text-white/30 tracking-widest">Ecosystem Preferences</h4>
+                  <div className="space-y-2">
+                    {['Auto-Sync News', 'High-Fidelity Audio', 'Neural Enhancement'].map(pref => (
+                      <div key={pref} className="flex justify-between items-center p-3 bg-white/5 rounded-xl border border-white/5">
+                        <span className="text-[10px] font-bold uppercase">{pref}</span>
+                        <div className="w-8 h-4 bg-auurio-accent rounded-full relative">
+                          <div className="absolute right-0.5 top-0.5 w-3 h-3 bg-white rounded-full shadow-sm" />
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+              <button onClick={() => setShowSettings(false)} className="mt-8 w-full bg-white/5 hover:bg-white/10 border border-white/10 py-4 rounded-xl font-black uppercase text-[10px] tracking-widest transition-all">Synchronize & Exit</button>
+            </motion.div>
+          </div>
+        )}
+
+        {showHelp && (
+          <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => setShowHelp(false)} className="absolute inset-0 bg-black/60 backdrop-blur-sm" />
+            <motion.div 
+              initial={{ opacity: 0, scale: 0.9, y: 20 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.9, y: 20 }}
+              className="relative w-full max-w-md glass-card rounded-3xl p-8 border-white/10"
+            >
+              <h3 className="text-xl font-black italic tracking-tighter uppercase mb-6">Support Logistics</h3>
+              <div className="space-y-6">
+                <p className="text-xs text-white/50 leading-relaxed font-medium">Welcome to the NewsLite Unit. If you encounter logic gaps or synchronization failures, initiate a manual pulse by refreshing your session.</p>
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="p-4 bg-auurio-accent/10 border border-auurio-accent/20 rounded-2xl">
+                    <Zap className="w-5 h-5 text-auurio-accent mb-2" />
+                    <span className="text-[9px] font-black uppercase block">Instant Sync</span>
+                  </div>
+                  <div className="p-4 bg-white/5 border border-white/10 rounded-2xl">
+                    <HelpCircle className="w-5 h-5 text-white/20 mb-2" />
+                    <span className="text-[9px] font-black uppercase block">Admin Hub</span>
+                  </div>
+                </div>
+                <button onClick={() => setShowHelp(false)} className="w-full bg-auurio-accent text-white py-4 rounded-xl font-black uppercase text-[10px] tracking-widest transition-all shadow-lg shadow-auurio-accent/20">Acknowledge</button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }
