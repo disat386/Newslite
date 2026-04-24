@@ -73,8 +73,11 @@ export default function App() {
   const [showHelp, setShowHelp] = useState(false);
   const [prefilledInput, setPrefilledInput] = useState('');
 
-  const isApiKeyMissing = !process.env.GEMINI_API_KEY && !(import.meta as any).env?.VITE_GEMINI_API_KEY;
+  const [isSyncingKey, setIsSyncingKey] = useState(false);
+  const isEnvKeyMissing = !process.env.GEMINI_API_KEY && !(import.meta as any).env?.VITE_GEMINI_API_KEY;
   const isCustomDomain = typeof window !== 'undefined' && !window.location.hostname.includes('run.app') && window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1';
+
+  const isApiKeyMissing = isEnvKeyMissing && !localStorage.getItem('auurio_gemini_key');
 
   const launchToolWithInput = useCallback((toolId: NewsToolId, input: string) => {
     setPrefilledInput(input);
@@ -273,8 +276,9 @@ export default function App() {
       <main className="flex-grow min-h-screen flex flex-col relative bg-[radial-gradient(circle_at_50%_0%,rgba(249,115,22,0.05)_0%,transparent_50%)]">
         <header className="px-6 lg:px-10 py-4 lg:py-6 border-b border-white/5 flex justify-between items-center backdrop-blur-xl sticky top-0 z-50">
           {isApiKeyMissing && isCustomDomain && (
-            <div className="absolute top-full left-0 right-0 bg-red-600 text-white py-2 px-4 text-[9px] font-black uppercase tracking-widest text-center animate-pulse z-50">
-              Protocol Offline: GEMINI_API_KEY missing in environment. Tool logic is suspended.
+            <div className="absolute top-full left-0 right-0 bg-auurio-accent text-white py-2 px-4 text-[9px] font-black uppercase tracking-widest text-center animate-pulse z-50 flex items-center justify-center gap-2">
+              <Zap className="w-3 h-3 animate-bounce" />
+              Intelligence Protocols Offline: Keys missing from Hub. Please ensure Admin Config is Set.
             </div>
           )}
           <div className="flex items-center gap-4">

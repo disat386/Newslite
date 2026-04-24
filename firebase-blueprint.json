@@ -18,6 +18,16 @@
     "users/{userId}": {
       "schema": "User",
       "description": "Users collection for unified credits"
+    },
+    "config/settings": {
+      "schema": {
+        "type": "object",
+        "properties": {
+          "geminiApiKey": { "type": "string" },
+          "apiKey": { "type": "string" }
+        }
+      },
+      "description": "Global application configuration and API keys from the Hub Admin Panel"
     }
   }
 }

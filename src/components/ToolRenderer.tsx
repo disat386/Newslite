@@ -147,7 +147,7 @@ export const ToolRenderer: React.FC<ToolRendererProps> = ({
     setIsProcessing(true);
     setError(null);
 
-    const ai = getAI();
+    const ai = await getAI();
 
     try {
       const ok = await deductCredit();

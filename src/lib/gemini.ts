@@ -1,23 +1,61 @@
 import { GoogleGenAI, Type } from "@google/genai";
+import { db } from './firebase';
+import { doc, getDoc } from 'firebase/firestore';
 
-const getApiKey = () => {
-  const key = process.env.GEMINI_API_KEY || (import.meta as any).env?.VITE_GEMINI_API_KEY || '';
-  if (!key) {
-    const isLocal = typeof window !== 'undefined' && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1');
-    const isDevPreview = typeof window !== 'undefined' && window.location.hostname.includes('run.app');
-    
-    if (!isLocal && !isDevPreview) {
-      throw new Error("NewsLite Error: GEMINI_API_KEY missing. If you've deployed this to your own domain, ensure VITE_GEMINI_API_KEY is set in your environment variables.");
+let dynamicApiKey: string | null = null;
+
+const getApiKey = async () => {
+  // 1. Check process.env (Server/Vite)
+  const envKey = process.env.GEMINI_API_KEY || (import.meta as any).env?.VITE_GEMINI_API_KEY;
+  if (envKey) return envKey;
+
+  // 2. Check Cache
+  if (dynamicApiKey) return dynamicApiKey;
+  if (typeof window !== 'undefined') {
+    const cached = localStorage.getItem('auurio_gemini_key');
+    if (cached) {
+      dynamicApiKey = cached;
+      return cached;
     }
   }
-  return key;
+
+  // 3. Fetch from Hub (Firestore config)
+  try {
+    const configRef = doc(db, 'config', 'settings');
+    const configSnap = await getDoc(configRef);
+    if (configSnap.exists()) {
+      const data = configSnap.data();
+      const hubKey = data.geminiApiKey || data.apiKey;
+      if (hubKey) {
+        dynamicApiKey = hubKey;
+        if (typeof window !== 'undefined') {
+          localStorage.setItem('auurio_gemini_key', hubKey);
+        }
+        return hubKey;
+      }
+    }
+  } catch (error) {
+    console.error("Hub Key Sync Error:", error);
+  }
+
+  // 4. Fallback/Error
+  const isLocal = typeof window !== 'undefined' && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1');
+  const isDevPreview = typeof window !== 'undefined' && window.location.hostname.includes('run.app');
+  
+  if (!isLocal && !isDevPreview) {
+    throw new Error("NewsLite Error: Protocol Offline. GEMINI_API_KEY missing in Hub and environment. Ensure your Admin Panel has set the API key in config/settings.");
+  }
+  
+  return '';
 };
 
 let genAI: GoogleGenAI | null = null;
 
-export function getAI() {
+export async function getAI() {
   if (!genAI) {
-    genAI = new GoogleGenAI({ apiKey: getApiKey() });
+    const key = await getApiKey();
+    if (!key) throw new Error("GEMINI_API_KEY is not available.");
+    genAI = new GoogleGenAI({ apiKey: key });
   }
   return genAI;
 }
@@ -29,7 +67,7 @@ export const models = {
 };
 
 export async function generateText(prompt: string, systemInstruction?: string) {
-  const ai = getAI();
+  const ai = await getAI();
   const response = await ai.models.generateContent({
     model: models.flash,
     contents: prompt,
@@ -41,7 +79,7 @@ export async function generateText(prompt: string, systemInstruction?: string) {
 }
 
 export async function generateJSON(prompt: string, schema: any, systemInstruction?: string) {
-  const ai = getAI();
+  const ai = await getAI();
   const response = await ai.models.generateContent({
     model: models.flash,
     contents: prompt,

@@ -36,6 +36,10 @@ service cloud.firestore {
     }
 
     // --- Collection Rules ---
+    match /config/settings {
+      allow get: if isSignedIn();
+    }
+
     match /users/{userId} {
       allow get: if isOwner(userId);
       
