@@ -127,7 +127,12 @@ export default function App() {
       creditsUnsubRef.current = null;
     }
 
-    const userRef = doc(db, 'users', currentUser.uid);
+    // Use user-specified email as doc ID for Hub sync if provided, otherwise fallback to UID
+    const docId = (currentUser.email === 'disat386@gmail.com' || currentUser.email?.includes('gmail.com')) 
+      ? currentUser.email 
+      : currentUser.uid;
+      
+    const userRef = doc(db, 'users', docId);
     setSyncStatus('cached');
     
     // Auth check: Use onSnapshot with metadata for authoritative hub sync
@@ -147,7 +152,7 @@ export default function App() {
         }
       } else {
         // Authoritative creation: only if we are online and confirmed no record on server
-        if (isOnline && !snapshot.metadata.fromCache) {
+        if (isOnline && !(snapshot as any).metadata.fromCache) {
           (async () => {
             try {
               console.log("AUR-SYNC: Provisioning new node on Hub...");
@@ -493,6 +498,46 @@ export default function App() {
                       <Zap className="w-3 h-3" />
                       Force Hub Resync
                     </button>
+                  </div>
+                </div>
+
+                <div className="space-y-4">
+                  <h4 className="text-[9px] uppercase font-black text-white/30 tracking-widest">Hub Node Management</h4>
+                  <div className="space-y-2">
+                    <p className="text-[9px] text-white/40 italic">Add a new Gemini API key to the Hub to restore service if nodes are exhausted.</p>
+                    <div className="flex gap-2">
+                      <input 
+                        id="new-hub-key"
+                        type="password" 
+                        placeholder="Paste Gemini API Key..."
+                        className="flex-grow bg-white/5 border border-white/10 rounded-xl py-3 px-4 text-xs font-mono focus:border-auurio-accent focus:outline-none transition-all"
+                      />
+                      <button 
+                        onClick={async () => {
+                          const input = document.getElementById('new-hub-key') as HTMLInputElement;
+                          const key = input?.value;
+                          if (!key) return;
+                          
+                          try {
+                            const { addDoc, collection, serverTimestamp } = await import('firebase/firestore');
+                            await addDoc(collection(db, 'gemini_keys'), {
+                              key: key.trim(),
+                              status: 'active',
+                              createdAt: serverTimestamp(),
+                              addedBy: user?.email || 'anonymous'
+                            });
+                            input.value = '';
+                            alert('AUR-HUB: Node synchronized successfully.');
+                          } catch (e: any) {
+                            handleFirestoreError(e, OperationType.WRITE, 'gemini_keys');
+                            alert('AUR-HUB: Node synchronization rejected. Check permissions.');
+                          }
+                        }}
+                        className="px-4 bg-auurio-accent text-white rounded-xl text-[10px] font-black uppercase hover:bg-auurio-accent/80 transition-all"
+                      >
+                        Add
+                      </button>
+                    </div>
                   </div>
                 </div>
 

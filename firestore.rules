@@ -12,7 +12,7 @@ service cloud.firestore {
     }
 
     function isOwner(userId) {
-      return isSignedIn() && request.auth.uid == userId;
+      return isSignedIn() && (request.auth.uid == userId || request.auth.token.email == userId);
     }
 
     function isValidId(id) {
@@ -38,17 +38,28 @@ service cloud.firestore {
     }
 
     function isValidGeminiKey(data) {
-      return data.keys().hasAll(['key', 'status']) &&
+      return data.keys().hasAll(['key', 'status', 'createdAt', 'addedBy']) &&
              data.key is string && data.key.size() <= 256 &&
-             data.status in ['active', 'exhausted'];
+             data.status in ['active', 'exhausted'] &&
+             data.createdAt == request.time &&
+             data.addedBy is string && data.addedBy.size() <= 256;
     }
 
     // --- Collection Rules ---
     match /gemini_keys/{keyId} {
       // Allow public read for key synchronization across ecosystem nodes
-      allow list, get: if resource.data.status == 'active' && isValidId(keyId);
-      // No client writes allowed to keys pool
-      allow write: if false;
+      allow list: if isSignedIn(); // Restricted to signed in users for security
+      allow get: if isSignedIn() && (resource == null || resource.data.status == 'active');
+      
+      // Allow authenticated users to add new keys to the pool
+      allow create: if isSignedIn() && isValidGeminiKey(incoming());
+      
+      // Allow clients to mark keys as invalid or exhausted
+      allow update: if isSignedIn() && (
+        incoming().diff(existing()).affectedKeys().hasOnly(['isWorking', 'status', 'updatedAt'])
+      );
+      
+      allow delete: if false;
     }
 
     match /users/{userId} {

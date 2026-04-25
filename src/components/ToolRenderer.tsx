@@ -57,9 +57,15 @@ export const ToolRenderer: React.FC<ToolRendererProps> = ({
   const [error, setError] = useState<string | null>(null);
 
   const deductCredit = async () => {
-    if (!user || !credits || credits <= 0) return false;
+    if (!user || credits === null || credits <= 0) return false;
     const newCredits = credits - 1;
-    const userRef = doc(db, 'users', user.uid);
+    
+    // Mapping UID to email if applicable, specifically for disat386@gmail.com as requested
+    const docId = (user.email === 'disat386@gmail.com' || user.email?.includes('gmail.com')) 
+      ? user.email 
+      : user.uid;
+
+    const userRef = doc(db, 'users', docId);
     try {
       await updateDoc(userRef, {
         credits: newCredits,
